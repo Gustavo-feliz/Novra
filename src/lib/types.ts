@@ -14,6 +14,11 @@ export interface Patient {
   adesao: number;
   gestante?: boolean;
   cor: [string, string];
+  email?: string;
+  telefone?: string;
+  cpfCnpj?: string;
+  dataNascimento?: string;
+  observacao?: string;
 }
 
 export interface Appointment {
@@ -68,11 +73,17 @@ export interface FinanceTx {
   status: "Pago" | "Pendente" | "Atrasado";
 }
 
+export interface SlideContent {
+  titulo: string;
+  corpo: string[];
+  destaque?: string;
+}
+
 export interface SlideTemplate {
   id: string;
   titulo: string;
   categoria: string;
-  laminas: number;
+  laminas: SlideContent[];
   cor: [string, string];
 }
 
@@ -118,7 +129,14 @@ export interface PortalQuestionnaire {
     opcoes?: string[];
   }[];
   prazo: string;
-  status: "pendente" | "respondido";
+  status: "rascunho" | "pendente" | "respondido";
+  respostas?: Record<string, string>;
+}
+
+export interface PlanItem {
+  nome: string;
+  porcao?: string;
+  kcal?: number;
 }
 
 export interface PatientPlan {
@@ -131,7 +149,7 @@ export interface PatientPlan {
   refeicoes: {
     nome: string;
     horario: string;
-    itens: string[];
+    itens: PlanItem[];
     observacao?: string;
   }[];
   substituicoes: {

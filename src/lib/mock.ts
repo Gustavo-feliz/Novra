@@ -16,14 +16,6 @@ export const CLINIC = { nome: "Vanessa da Luz · Nutrição", nutri: "Vanessa da
 
 export const PATIENTS: Patient[] = [
   { id: "p1", nome: "Mariana Costa Ribeiro", idade: 32, sexo: "Feminino", objetivo: "Gestacional", status: "ativo", tags: ["Gestante", "Alta prioridade"], ultimaConsulta: "12/06", proximaAcao: "Retorno em 10/07", adesao: 86, gestante: true, cor: ["#9DB99F", "#6E8C72"] },
-  { id: "p2", nome: "Rafael Andrade Lima", idade: 41, sexo: "Masculino", objetivo: "Clínico", status: "ativo", tags: ["Dislipidemia"], ultimaConsulta: "09/06", proximaAcao: "Revisar exames", adesao: 64, cor: ["#A8B6C9", "#73839E"] },
-  { id: "p3", nome: "Beatriz Nogueira", idade: 27, sexo: "Feminino", objetivo: "Emagrecimento", status: "ativo", tags: ["Online"], ultimaConsulta: "11/06", proximaAcao: "Enviar plano v2", adesao: 92, cor: ["#E0B48C", "#C98B5A"] },
-  { id: "p4", nome: "João Pedro Salgado", idade: 23, sexo: "Masculino", objetivo: "Hipertrofia", status: "ativo", tags: ["Atleta"], ultimaConsulta: "05/06", proximaAcao: "Ajustar macros", adesao: 78, cor: ["#9FB6A0", "#6E8C72"] },
-  { id: "p5", nome: "Carolina Mendes", idade: 35, sexo: "Feminino", objetivo: "Gestacional", status: "pausa", tags: ["Gestante"], ultimaConsulta: "20/05", proximaAcao: "Reagendar", adesao: 55, gestante: true, cor: ["#C9A2B0", "#9E7383"] },
-  { id: "p6", nome: "Henrique Tavares", idade: 52, sexo: "Masculino", objetivo: "Clínico", status: "ativo", tags: ["Diabetes", "Inadimplente"], ultimaConsulta: "02/06", proximaAcao: "Cobrança pendente", adesao: 41, cor: ["#B9A88C", "#8E7B5E"] },
-  { id: "p7", nome: "Larissa Fontes", idade: 19, sexo: "Feminino", objetivo: "Esportivo", status: "ativo", tags: ["Corrida"], ultimaConsulta: "10/06", proximaAcao: "Plano pré-prova", adesao: 88, cor: ["#A2C2C9", "#739AA0"] },
-  { id: "p8", nome: "Theo Martins", idade: 8, sexo: "Masculino", objetivo: "Infantil", status: "ativo", tags: ["Seletividade"], ultimaConsulta: "07/06", proximaAcao: "Orientar família", adesao: 70, cor: ["#C9C2A2", "#9E9873"] },
-  { id: "p9", nome: "Patrícia Lemos", idade: 47, sexo: "Feminino", objetivo: "Emagrecimento", status: "alta", tags: [], ultimaConsulta: "28/04", proximaAcao: "Alta concedida", adesao: 95, cor: ["#A8B6C9", "#73839E"] },
 ];
 
 /* ============================ PORTAL DO PACIENTE ============================ */
@@ -41,18 +33,44 @@ export const PATIENT_PLAN: PatientPlan = {
   aguaMl: 2600,
   proteinaG: 112,
   refeicoes: [
-    { nome: "Cafe da manha", horario: "07:30", itens: ["Tapioca media com 2 ovos", "Mamao com chia", "Cafe com leite sem acucar"], observacao: "Priorize comer antes de sair de casa." },
-    { nome: "Lanche da manha", horario: "10:30", itens: ["Iogurte natural", "Aveia em flocos", "Morangos ou banana"] },
-    { nome: "Almoco", horario: "13:00", itens: ["Arroz integral", "Feijao", "Frango grelhado ou peixe", "Salada verde com azeite", "Legumes cozidos"] },
-    { nome: "Lanche da tarde", horario: "16:30", itens: ["Pao integral", "Queijo branco", "Fruta da estacao"] },
-    { nome: "Jantar", horario: "20:00", itens: ["Sopa de legumes com frango", "Torradas integrais", "Folhas verdes"] },
-    { nome: "Ceia", horario: "22:00", itens: ["Leite morno", "Castanhas ou pasta de amendoim"] },
+    { nome: "Cafe da manha", horario: "07:30", itens: [
+        { nome: "Tapioca media com 2 ovos", porcao: "1 un", kcal: 220 }, { nome: "Mamao com chia", porcao: "1 fatia", kcal: 70 }, { nome: "Cafe com leite sem acucar", porcao: "1 xic", kcal: 40 },
+      ], observacao: "Priorize comer antes de sair de casa." },
+    { nome: "Lanche da manha", horario: "10:30", itens: [
+        { nome: "Iogurte natural", porcao: "170 g", kcal: 100 }, { nome: "Aveia em flocos", porcao: "30 g", kcal: 115 }, { nome: "Morangos ou banana", porcao: "1 porção", kcal: 60 },
+      ] },
+    { nome: "Almoco", horario: "13:00", itens: [
+        { nome: "Arroz integral", porcao: "4 col", kcal: 124 }, { nome: "Feijao", porcao: "1 concha", kcal: 76 }, { nome: "Frango grelhado ou peixe", porcao: "100 g", kcal: 165 },
+        { nome: "Salada verde com azeite", porcao: "1 porção", kcal: 90 }, { nome: "Legumes cozidos", porcao: "100 g", kcal: 40 },
+      ] },
+    { nome: "Lanche da tarde", horario: "16:30", itens: [
+        { nome: "Pao integral", porcao: "1 fatia", kcal: 74 }, { nome: "Queijo branco", porcao: "30 g", kcal: 70 }, { nome: "Fruta da estacao", porcao: "1 un", kcal: 65 },
+      ] },
+    { nome: "Jantar", horario: "20:00", itens: [
+        { nome: "Sopa de legumes com frango", porcao: "1 prato", kcal: 180 }, { nome: "Torradas integrais", porcao: "2 un", kcal: 60 }, { nome: "Folhas verdes", porcao: "1 porção", kcal: 15 },
+      ] },
+    { nome: "Ceia", horario: "22:00", itens: [
+        { nome: "Leite morno", porcao: "200 ml", kcal: 90 }, { nome: "Castanhas ou pasta de amendoim", porcao: "15 g", kcal: 95 },
+      ] },
   ],
   substituicoes: [
     { grupo: "Proteinas", opcoes: ["Frango", "Peixe", "Patinho", "Ovos", "Tofu"] },
     { grupo: "Carboidratos", opcoes: ["Arroz integral", "Batata-doce", "Mandioca", "Macarrao integral"] },
     { grupo: "Frutas", opcoes: ["Mamao", "Banana", "Maca", "Morango", "Laranja"] },
   ],
+};
+
+// Planos alimentares são por paciente. Só a Mariana (paciente-teste do portal) vem com
+// um plano de exemplo pré-preenchido — qualquer outro paciente começa sem plano, e a
+// nutricionista cria um do zero pela tela de Plano alimentar.
+export const PLANOS_SEED: Record<string, PatientPlan> = {
+  [PORTAL_ACCESS.patientId]: PATIENT_PLAN,
+};
+
+export const REFEICOES_PADRAO = ["Café da manhã", "Lanche da manhã", "Almoço", "Lanche da tarde", "Jantar", "Ceia"];
+export const HORARIOS_PADRAO: Record<string, string> = {
+  "Café da manhã": "07:30", "Lanche da manhã": "10:00", "Almoço": "12:30",
+  "Lanche da tarde": "16:00", "Jantar": "19:30", "Ceia": "22:00",
 };
 
 export const PORTAL_GOALS: Goal[] = [
@@ -92,41 +110,47 @@ export const PORTAL_QUESTIONNAIRES: PortalQuestionnaire[] = [
       { id: "q3", texto: "Quantos copos de agua tomou?", tipo: "escala" },
     ],
   },
+  {
+    id: "pq3",
+    titulo: "Triagem inicial",
+    categoria: "Consumo",
+    prazo: "05/06",
+    status: "respondido",
+    perguntas: [
+      { id: "q1", texto: "Como voce descreveria sua rotina alimentar atual?", tipo: "texto" },
+      { id: "q2", texto: "Em uma escala, como esta seu nivel de energia?", tipo: "escala" },
+    ],
+    respostas: { q1: "Tento comer de 3 em 3 horas, mas as vezes pulo o lanche da tarde por falta de tempo no trabalho.", q2: "4" },
+  },
 ];
+
+// Questionários enviados/respondidos são por paciente. Só a Mariana (paciente do
+// portal) vem com exemplos pré-prontos; qualquer outro paciente começa sem nenhum.
+export const QUESTIONARIOS_SEED: Record<string, PortalQuestionnaire[]> = {
+  [PORTAL_ACCESS.patientId]: PORTAL_QUESTIONNAIRES,
+};
 
 export const PORTAL_FINANCE = [
   { id: "pf1", data: "12/06/2026", desc: "Consulta de retorno", valor: 250, status: "Pago", vencimento: "12/06/2026" },
   { id: "pf2", data: "10/07/2026", desc: "Retorno agendado", valor: 250, status: "Pendente", vencimento: "10/07/2026" },
 ];
 
-export const BIRTHDAYS = [
-  { nome: "Beatriz Nogueira", quando: "Hoje", idade: 27 },
-  { nome: "Henrique Tavares", quando: "Quinta", idade: 52 },
-];
+export const BIRTHDAYS: { nome: string; quando: string; idade: number }[] = [];
 
 export const TASKS = [
-  { t: "Revisar exames do Rafael Andrade", done: false },
-  { t: "Enviar plano alimentar v2 — Beatriz", done: false },
-  { t: "Confirmar retorno da Mariana (10/07)", done: false },
-  { t: "Emitir recibo de maio — Larissa", done: true },
+  { t: "Confirmar retorno da Mariana Costa (10/07)", done: false },
 ];
 
 export const DASH = {
-  ativos: 47, consultasSemana: 18, taxaRetorno: 82, planosVencendo: 5,
+  ativos: 1, consultasSemana: 1, taxaRetorno: 0, planosVencendo: 0,
   semana: [
-    { dia: "Seg", consultas: 4 }, { dia: "Ter", consultas: 3 }, { dia: "Qua", consultas: 5 },
-    { dia: "Qui", consultas: 2 }, { dia: "Sex", consultas: 4 }, { dia: "Sáb", consultas: 0 },
+    { dia: "Seg", consultas: 0 }, { dia: "Ter", consultas: 0 }, { dia: "Qua", consultas: 0 },
+    { dia: "Qui", consultas: 1 }, { dia: "Sex", consultas: 0 }, { dia: "Sáb", consultas: 0 },
   ],
 };
 
 export const AGENDA: Appointment[] = [
-  { id: "a1", paciente: "Beatriz Nogueira", hora: "08:00", dur: 60, tipo: "Retorno", modo: "Online", dia: 0 },
-  { id: "a2", paciente: "Rafael Andrade Lima", hora: "10:00", dur: 60, tipo: "Avaliação", modo: "Presencial", dia: 0 },
-  { id: "a3", paciente: "João Pedro Salgado", hora: "14:00", dur: 45, tipo: "Retorno", modo: "Presencial", dia: 1 },
-  { id: "a4", paciente: "Larissa Fontes", hora: "09:00", dur: 60, tipo: "Retorno", modo: "Online", dia: 2 },
-  { id: "a5", paciente: "Theo Martins", hora: "11:00", dur: 45, tipo: "Acompanhamento", modo: "Presencial", dia: 2 },
   { id: "a6", paciente: "Mariana Costa Ribeiro", hora: "14:30", dur: 60, tipo: "Retorno", modo: "Online", dia: 3 },
-  { id: "a7", paciente: "Henrique Tavares", hora: "16:00", dur: 60, tipo: "Avaliação", modo: "Presencial", dia: 4 },
 ];
 
 export const WEEKDAYS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -141,18 +165,8 @@ export const STATUS_META: Record<string, { label: string; chip: string }> = {
 
 /* ============================ DIÁRIOS (visão geral) ============================ */
 export const DIARIES: DiaryPost[] = [
-  { id: "dy1", pacienteId: "p3", paciente: "Beatriz Nogueira", refeicao: "Almoço", quando: "Hoje · 12:40", desc: "Arroz integral, feijão, frango grelhado e salada de folhas verdes com azeite.", cor: ["#E0B48C", "#C98B5A"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
   { id: "dy2", pacienteId: "p1", paciente: "Mariana Costa Ribeiro", refeicao: "Café da manhã", quando: "Hoje · 08:15", desc: "Tapioca com ovo mexido, mamão e café sem açúcar.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
-  { id: "dy3", pacienteId: "p4", paciente: "João Pedro Salgado", refeicao: "Pré-treino", quando: "Hoje · 06:30", desc: "Pão integral com pasta de amendoim e banana. Café preto.", cor: ["#9FB6A0", "#6E8C72"], reacoes: 1, comentarios: 1, curtido: true, revisado: true },
-  { id: "dy4", pacienteId: "p7", paciente: "Larissa Fontes", refeicao: "Jantar", quando: "Ontem · 20:10", desc: "Omelete de claras com legumes e batata-doce assada.", cor: ["#A2C2C9", "#739AA0"], reacoes: 1, comentarios: 0, curtido: true, revisado: false },
-  { id: "dy5", pacienteId: "p2", paciente: "Rafael Andrade Lima", refeicao: "Lanche", quando: "Ontem · 16:30", desc: "Iogurte natural com aveia e mix de castanhas.", cor: ["#A8B6C9", "#73839E"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
-  { id: "dy6", pacienteId: "p3", paciente: "Beatriz Nogueira", refeicao: "Café da manhã", quando: "Ontem · 07:50", desc: "Vitamina de morango com whey e chia. Ovos mexidos.", cor: ["#E0B48C", "#C98B5A"], reacoes: 1, comentarios: 2, curtido: true, revisado: true },
-  { id: "dy7", pacienteId: "p8", paciente: "Theo Martins", refeicao: "Lanche escolar", quando: "Ontem · 15:00", desc: "Sanduíche de queijo branco, suco de uva integral e uma maçã.", cor: ["#C9C2A2", "#9E9873"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
   { id: "dy8", pacienteId: "p1", paciente: "Mariana Costa Ribeiro", refeicao: "Jantar", quando: "Ontem · 19:40", desc: "Sopa de abóbora com frango desfiado e torradas integrais.", cor: ["#9DB99F", "#6E8C72"], reacoes: 1, comentarios: 1, curtido: true, revisado: true },
-  { id: "dy9", pacienteId: "p6", paciente: "Henrique Tavares", refeicao: "Almoço", quando: "2 dias · 13:10", desc: "Macarrão integral ao sugo com carne moída magra e salada.", cor: ["#B9A88C", "#8E7B5E"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
-  { id: "dy10", pacienteId: "p7", paciente: "Larissa Fontes", refeicao: "Pós-treino", quando: "2 dias · 10:20", desc: "Shake de banana com whey e pasta de amendoim.", cor: ["#A2C2C9", "#739AA0"], reacoes: 1, comentarios: 1, curtido: true, revisado: true },
-  { id: "dy11", pacienteId: "p4", paciente: "João Pedro Salgado", refeicao: "Almoço", quando: "2 dias · 12:30", desc: "Arroz, feijão, patinho grelhado, brócolis e ovo cozido.", cor: ["#9FB6A0", "#6E8C72"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
-  { id: "dy12", pacienteId: "p5", paciente: "Carolina Mendes", refeicao: "Café da manhã", quando: "3 dias · 09:00", desc: "Cuscuz com ovo e queijo coalho. Suco de laranja.", cor: ["#C9A2B0", "#9E7383"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
 ];
 
 /* ============================ QUESTIONÁRIOS (banco) ============================ */
@@ -170,26 +184,14 @@ export const Q_CATEGORIES = ["Todas", "Consumo", "Saúde", "Estilo de vida", "Co
 
 /* ============================ FINANCEIRO (consultório) ============================ */
 export const FINANCE_TX: FinanceTx[] = [
-  { id: "f1", data: "16/06/2026", paciente: "Beatriz Nogueira", pacienteId: "p3", desc: "Consulta de retorno", valor: 220, forma: "Pix", status: "Pago" },
-  { id: "f2", data: "15/06/2026", paciente: "João Pedro Salgado", pacienteId: "p4", desc: "Consulta + bioimpedância", valor: 320, forma: "Cartão", status: "Pago" },
   { id: "f3", data: "12/06/2026", paciente: "Mariana Costa Ribeiro", pacienteId: "p1", desc: "Consulta de retorno", valor: 250, forma: "Pix", status: "Pago" },
-  { id: "f4", data: "11/06/2026", paciente: "Larissa Fontes", pacienteId: "p7", desc: "Plano pré-prova", valor: 280, forma: "Transferência", status: "Pago" },
-  { id: "f5", data: "09/06/2026", paciente: "Rafael Andrade Lima", pacienteId: "p2", desc: "Consulta de retorno", valor: 250, forma: "—", status: "Pendente" },
-  { id: "f6", data: "07/06/2026", paciente: "Theo Martins", pacienteId: "p8", desc: "Acompanhamento infantil", valor: 200, forma: "Dinheiro", status: "Pago" },
-  { id: "f7", data: "02/06/2026", paciente: "Henrique Tavares", pacienteId: "p6", desc: "Consulta de retorno", valor: 250, forma: "—", status: "Atrasado" },
-  { id: "f8", data: "30/05/2026", paciente: "Beatriz Nogueira", pacienteId: "p3", desc: "Primeira consulta", valor: 380, forma: "Cartão", status: "Pago" },
-  { id: "f9", data: "28/05/2026", paciente: "Carolina Mendes", pacienteId: "p5", desc: "Consulta de retorno", valor: 250, forma: "Pix", status: "Pago" },
-  { id: "f10", data: "20/05/2026", paciente: "João Pedro Salgado", pacienteId: "p4", desc: "Consulta de retorno", valor: 250, forma: "Pix", status: "Pago" },
 ];
 export const FINANCE_MONTHLY = [
-  { mes: "Jan", receita: 6800 }, { mes: "Fev", receita: 7250 }, { mes: "Mar", receita: 8100 },
-  { mes: "Abr", receita: 7600 }, { mes: "Mai", receita: 9200 }, { mes: "Jun", receita: 8650 },
+  { mes: "Jan", receita: 0 }, { mes: "Fev", receita: 0 }, { mes: "Mar", receita: 0 },
+  { mes: "Abr", receita: 0 }, { mes: "Mai", receita: 0 }, { mes: "Jun", receita: 250 },
 ];
 export const FINANCE_FORMAS = [
-  { forma: "Pix", valor: 4120, cor: "var(--sage)" },
-  { forma: "Cartão", valor: 3380, cor: "var(--blue)" },
-  { forma: "Transferência", valor: 1150, cor: "var(--amber)" },
-  { forma: "Dinheiro", valor: 600, cor: "var(--terra)" },
+  { forma: "Pix", valor: 250, cor: "var(--sage)" },
 ];
 
 /* ============================ MEUS FAVORITOS ============================ */
@@ -220,14 +222,90 @@ export const FAVORITES = {
 
 /* ============================ LÂMINAS (templates visuais) ============================ */
 export const SLIDES: SlideTemplate[] = [
-  { id: "s1", titulo: "Prato saudável — método do prato", categoria: "Educação alimentar", laminas: 6, cor: ["#9DB99F", "#6E8C72"] },
-  { id: "s2", titulo: "Mitos e verdades sobre carboidratos", categoria: "Educação alimentar", laminas: 8, cor: ["#A2C2C9", "#739AA0"] },
-  { id: "s3", titulo: "Alimentação na gestação", categoria: "Gestante", laminas: 10, cor: ["#C9A2B0", "#9E7383"] },
-  { id: "s4", titulo: "Lanches inteligentes para o trabalho", categoria: "Praticidade", laminas: 5, cor: ["#E0B48C", "#C98B5A"] },
-  { id: "s5", titulo: "Hipertrofia: proteína e timing", categoria: "Esportivo", laminas: 7, cor: ["#9FB6A0", "#6E8C72"] },
-  { id: "s6", titulo: "Diabetes: índice glicêmico na prática", categoria: "Clínico", laminas: 9, cor: ["#B9A88C", "#8E7B5E"] },
-  { id: "s7", titulo: "Introdução alimentar do bebê (BLW)", categoria: "Infantil", laminas: 12, cor: ["#C9C2A2", "#9E9873"] },
-  { id: "s8", titulo: "Leitura de rótulos sem mistério", categoria: "Educação alimentar", laminas: 6, cor: ["#A8B6C9", "#73839E"] },
+  {
+    id: "s1", titulo: "Prato saudável — método do prato", categoria: "Educação alimentar", cor: ["#9DB99F", "#6E8C72"],
+    laminas: [
+      { titulo: "O método do prato", corpo: ["Uma forma simples de montar refeições equilibradas sem precisar pesar tudo.", "Divida o prato visualmente em proporções — sem báscula, sem complicação."] },
+      { titulo: "Metade do prato: vegetais", corpo: ["Folhas verdes, legumes crus ou cozidos", "Capriche nas cores — quanto mais variado, melhor a variedade de nutrientes", "Pode ser salada + legume cozido ao mesmo tempo"] },
+      { titulo: "Um quarto: proteínas", corpo: ["Carnes magras, peixe, ovos", "Leguminosas (feijão, lentilha, grão-de-bico) também contam", "Alterne as fontes durante a semana"] },
+      { titulo: "Um quarto: carboidratos", corpo: ["Arroz, batata, mandioca, macarrão", "Prefira versões integrais quando possível", "A porção é o que diferencia — não é proibido, é proporção"], destaque: "Carboidrato não é vilão: é energia. O segredo está na quantidade e no que vem junto." },
+      { titulo: "Não esqueça da gordura boa", corpo: ["Azeite de oliva, abacate, castanhas", "Com moderação — uma colher de azeite já faz diferença"] },
+      { titulo: "Na prática", corpo: ["Funciona em casa e em restaurante/buffet", "Ajuda a visualizar porção sem contar caloria a toda hora", "Use esse modelo como ponto de partida, não como regra rígida"], destaque: "Tire uma foto do seu prato montado assim e traga para a próxima consulta." },
+    ],
+  },
+  {
+    id: "s2", titulo: "Mitos e verdades sobre carboidratos", categoria: "Educação alimentar", cor: ["#A2C2C9", "#739AA0"],
+    laminas: [
+      { titulo: "Carboidrato é vilão?", corpo: ["Não. É a principal fonte de energia do corpo e do cérebro.", "O problema não é o nutriente — é o excesso ou a baixa qualidade das fontes."] },
+      { titulo: "Mito: comer carboidrato à noite engorda", corpo: ["O que determina ganho de peso é o balanço total do dia, não o horário da refeição.", "Jantar com carboidrato não é o problema — exagerar no total diário sim."] },
+      { titulo: "Mito: pão integral é sempre mais saudável", corpo: ["Depende da lista de ingredientes, não só do nome na embalagem.", "Procure 'farinha integral' como primeiro ingrediente e poucos aditivos."], destaque: "Vire o pacote e leia o rótulo — a marca não conta a história toda." },
+      { titulo: "Verdade: nem todo carboidrato é igual", corpo: ["Integrais e fontes com fibra saciam mais e elevam a glicose mais lentamente.", "Refinados (açúcar, farinha branca) elevam a glicemia rápido e saciam menos."] },
+      { titulo: "Quanto comer", corpo: ["Varia com objetivo, atividade física e rotina — não existe número universal.", "Cortar carboidrato sem orientação pode causar fadiga e perda de massa magra."] },
+      { titulo: "Resumo da conversa", corpo: ["Carboidrato não precisa ser eliminado.", "Equilíbrio e qualidade da fonte importam mais que zerar o grupo todo."], destaque: "Equilíbrio sempre vence eliminação a longo prazo." },
+    ],
+  },
+  {
+    id: "s3", titulo: "Alimentação na gestação", categoria: "Gestante", cor: ["#C9A2B0", "#9E7383"],
+    laminas: [
+      { titulo: "Por que a alimentação importa agora", corpo: ["Sustenta a formação do bebê, a placenta e suas próprias reservas.", "Não é “comer por dois” — é comer melhor, com mais atenção à qualidade."] },
+      { titulo: "Nutrientes-chave da gestação", corpo: ["Ácido fólico — formação do sistema nervoso", "Ferro — previne anemia, mais comum nessa fase", "Cálcio — ossos do bebê sem comprometer os seus", "Ômega-3 (DHA) — desenvolvimento cerebral"] },
+      { titulo: "Hidratação", corpo: ["Meta de referência: cerca de 2,5 L de água por dia", "Sinais de pouca água: urina escura, sede intensa, dor de cabeça"], destaque: "Leve uma garrafinha com você — facilita lembrar de beber ao longo do dia." },
+      { titulo: "Atenção a esses itens", corpo: ["Álcool: evitar completamente", "Peixes com mercúrio alto em excesso (ex.: peixes grandes/predadores)", "Embutidos e carnes cruas ou mal passadas"] },
+      { titulo: "Enjoo e desconforto no início", corpo: ["Refeições menores e mais frequentes ajudam mais que 3 refeições grandes", "Evitar ficar de estômago vazio por muito tempo", "Gengibre (chá ou natural) pode aliviar"] },
+      { titulo: "Ganho de peso saudável", corpo: ["A faixa recomendada varia por trimestre e pelo seu IMC pré-gestacional", "Acompanhamos isso juntas a cada consulta — não existe meta genérica"], destaque: "Sua curva de peso é individual. Vamos olhar o seu gráfico na próxima consulta." },
+    ],
+  },
+  {
+    id: "s4", titulo: "Lanches inteligentes para o trabalho", categoria: "Praticidade", cor: ["#E0B48C", "#C98B5A"],
+    laminas: [
+      { titulo: "Por que planejar o lanche", corpo: ["Evita escolhas por impulso na máquina de snacks ou na padaria mais próxima.", "Quem decide com fome decide pior — ter algo pronto facilita a boa escolha."] },
+      { titulo: "Para levar na bolsa (sem geladeira)", corpo: ["Castanhas e mix de oleaginosas", "Frutas que não amassam: maçã, banana, tangerina", "Barrinhas caseiras de aveia e fruta"] },
+      { titulo: "Se tiver geladeira no trabalho", corpo: ["Iogurte natural ou queijo branco", "Ovos cozidos (duram bem na geladeira por alguns dias)", "Potinho de frutas picadas"] },
+      { titulo: "Sem tempo de preparar nada", corpo: ["Opções de mercado com rótulo simples: poucos ingredientes reconhecíveis", "Água de coco, frutas inteiras e castanhas embaladas resolvem bem"] },
+      { titulo: "Monte com antecedência", corpo: ["Reserve 20-30 min no fim de semana para organizar potes da semana", "Lanche pronto = menos decisão no meio do dia cansado"], destaque: "Comece organizando só 2-3 dias da semana — não precisa ser tudo de uma vez." },
+    ],
+  },
+  {
+    id: "s5", titulo: "Hipertrofia: proteína e timing", categoria: "Esportivo", cor: ["#9FB6A0", "#6E8C72"],
+    laminas: [
+      { titulo: "Quanto de proteína", corpo: ["A necessidade varia por peso, treino e objetivo — vamos individualizar o seu número.", "Mais não é sempre melhor: existe um teto de aproveitamento por refeição."] },
+      { titulo: "Distribuição ao longo do dia", corpo: ["Espalhar proteína em 3-4 refeições funciona melhor que concentrar tudo numa só.", "Cada refeição principal com uma boa fonte de proteína ajuda a atingir a meta do dia."] },
+      { titulo: "E a tal 'janela' pós-treino?", corpo: ["Não precisa ser nos primeiros 30 minutos — esse mito já foi revisado.", "O que importa é não deixar passar muitas horas sem comer depois do treino."], destaque: "Relaxa: comer proteína no pós-treino dentro de 1-2h já é suficiente." },
+      { titulo: "Fontes de boa qualidade", corpo: ["Carnes magras, peixe, ovos, frango", "Whey protein como complemento prático (não substitui a comida)", "Combinação leguminosa + cereal (feijão + arroz) também soma proteína"] },
+      { titulo: "Não é só sobre proteína", corpo: ["Carboidrato dá energia para treinar com qualidade", "Sono e descanso são onde o músculo realmente se recupera e cresce"] },
+    ],
+  },
+  {
+    id: "s6", titulo: "Diabetes: índice glicêmico na prática", categoria: "Clínico", cor: ["#B9A88C", "#8E7B5E"],
+    laminas: [
+      { titulo: "O que é índice glicêmico", corpo: ["Mede a velocidade com que um alimento eleva a glicose no sangue.", "Quanto mais rápido sobe, maior o índice glicêmico do alimento."] },
+      { titulo: "Alto x baixo IG — exemplos", corpo: ["Alto: pão branco, batata frita, refrigerante, arroz branco em excesso", "Baixo: leguminosas, vegetais, grãos integrais, a maioria das frutas inteiras"] },
+      { titulo: "Como reduzir o impacto de uma refeição", corpo: ["Combine carboidrato com fibra, proteína ou gordura boa", "Exemplo: arroz branco + feijão + salada tem impacto menor do que arroz puro"], destaque: "Combinar é mais simples no dia a dia do que eliminar grupos inteiros." },
+      { titulo: "Sobre as frutas", corpo: ["Frutas não são proibidas — atenção à porção e à combinação", "Fruta inteira > suco, porque a fibra desacelera a absorção do açúcar"] },
+      { titulo: "Hábito que ajuda bastante", corpo: ["Caminhar de 10 a 15 minutos após a refeição reduz o pico glicêmico", "Pequenas pausas ativas ao longo do dia também contribuem"] },
+    ],
+  },
+  {
+    id: "s7", titulo: "Introdução alimentar do bebê (BLW)", categoria: "Infantil", cor: ["#C9C2A2", "#9E9873"],
+    laminas: [
+      { titulo: "O que é BLW", corpo: ["Baby-Led Weaning: o bebê se alimenta com as próprias mãos desde o início.", "Em vez de papinhas amassadas, oferece-se o alimento em pedaços seguros."] },
+      { titulo: "Quando começar", corpo: ["Geralmente a partir dos 6 meses, junto com os sinais de prontidão.", "A idade sozinha não basta — observe o desenvolvimento do bebê."] },
+      { titulo: "Sinais de prontidão", corpo: ["Senta sem apoio com boa estabilidade de tronco", "Sustenta bem a cabeça", "Demonstra interesse ativo pela comida da família"] },
+      { titulo: "Primeiros alimentos sugeridos", corpo: ["Legumes cozidos em formato de bastão (cenoura, abobrinha, batata-doce)", "Frutas macias em pedaços grandes (banana, manga, pera madura)"], destaque: "Formato de bastão facilita a pega da mãozinha do bebê no início." },
+      { titulo: "Segurança à mesa", corpo: ["Sempre supervisionar — nunca deixar o bebê comendo sozinho", "Evitar alimentos pequenos e duros (risco de engasgo): uva inteira, amendoim inteiro", "Texturas e formatos adequados à fase do bebê"] },
+      { titulo: "Sobre a sujeira (sim, vai sujar)", corpo: ["Faz parte do processo: o bebê está explorando textura, cor e cheiro.", "Forre o chão e tenha paciência — é aprendizado sensorial, não desperdício"] },
+    ],
+  },
+  {
+    id: "s8", titulo: "Leitura de rótulos sem mistério", categoria: "Educação alimentar", cor: ["#A8B6C9", "#73839E"],
+    laminas: [
+      { titulo: "Por onde começar", corpo: ["Vá direto na lista de ingredientes — eles aparecem em ordem de quantidade.", "Se açúcar ou farinha branca estão entre os 3 primeiros, é um sinal de alerta."] },
+      { titulo: "Tabela nutricional: cuidado com a porção", corpo: ["Os valores são por porção de referência — nem sempre é o pacote inteiro.", "Compare sempre o tamanho da porção antes de comparar calorias entre produtos."], destaque: "Um pacote 'de 100 kcal' pode ter 3 porções — ou seja, 300 kcal se comer tudo." },
+      { titulo: "Termos que merecem desconfiança", corpo: ["'Light' e 'diet' não são sinônimos de saudável — leia o que mudou de fato", "Açúcar aparece com vários nomes: xarope de glicose, maltodextrina, dextrose"] },
+      { titulo: "Sódio escondido", corpo: ["Embutidos, temperos prontos e congelados costumam concentrar bastante sódio", "Compare marcas — a diferença entre elas pode ser grande"] },
+      { titulo: "Exercício prático", corpo: ["Pegue dois produtos parecidos no mercado e compare a tabela antes de decidir", "Em pouco tempo isso vira hábito automático, sem esforço"], destaque: "Traga um rótulo que te deixou em dúvida para conversarmos na consulta." },
+    ],
+  },
 ];
 export const SLIDE_CATEGORIES = ["Todas", "Educação alimentar", "Gestante", "Esportivo", "Clínico", "Infantil", "Praticidade"];
 
@@ -283,7 +361,5 @@ export const WHATS_AUTOMATIONS: WhatsAutomation[] = [
 
 /* ============================ VIDEOCHAMADA (salas) ============================ */
 export const VIDEO_ROOMS = [
-  { id: "p3", paciente: "Beatriz Nogueira", hora: "Hoje · 08:00", tipo: "Retorno", status: "agora", cor: ["#E0B48C", "#C98B5A"] as [string, string] },
-  { id: "p7", paciente: "Larissa Fontes", hora: "Hoje · 14:00", tipo: "Retorno", status: "proxima", cor: ["#A2C2C9", "#739AA0"] as [string, string] },
   { id: "p1", paciente: "Mariana Costa Ribeiro", hora: "Qui · 14:30", tipo: "Retorno", status: "agendada", cor: ["#9DB99F", "#6E8C72"] as [string, string] },
 ];

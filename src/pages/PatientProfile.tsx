@@ -2,10 +2,13 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useTheme } from "../lib/theme";
 import { useToast } from "../components/ui/Toast";
-import { PATIENTS, PORTAL_ACCESS } from "../lib/mock";
+import { PATIENTS, PORTAL_ACCESS, PLANOS_SEED, REFEICOES_PADRAO, HORARIOS_PADRAO, PORTAL_GOALS, QUESTIONARIOS_SEED, AGENDA, WEEKDAYS } from "../lib/mock";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
+import { useStreak } from "../lib/engagement";
+import { pushEvent } from "../lib/events";
 import { NotificationBell } from "../components/NotificationBell";
-import { cx, brl, uid, initials, pct, logout } from "../lib/utils";
+import { cx, brl, uid, initials, pct, logout, calcularIdade } from "../lib/utils";
+import type { Patient, Appointment, PatientPlan, PortalQuestionnaire } from "../lib/types";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
   Tooltip, CartesianGrid,
@@ -18,6 +21,7 @@ import {
   BookOpen, Camera, Lightbulb, Target, FileSignature, HeartPulse, FolderOpen,
   Folder, File as FileIcon, Receipt, Trash2, Upload, ShieldCheck,
   Salad, Stethoscope, Pencil, ArrowRight, Sparkles, Link2, Droplets, LogOut,
+  GlassWater, Minus, CalendarPlus, RefreshCw,
 } from "lucide-react";
 
 /* ============================ DESIGN SYSTEM ============================ */
@@ -189,6 +193,8 @@ table.tbl{ width:100%; border-collapse:collapse; font-size:13px; }
 
 .upload{ border:1.5px dashed var(--border); border-radius:14px; padding:26px; text-align:center; cursor:pointer; transition:.16s; color:var(--muted); background:var(--surface2); }
 .upload:hover{ border-color:var(--ring); color:var(--text); background:var(--sage-soft); }
+.upload.drag{ border-color:var(--sage); color:var(--sage-strong); background:var(--sage-soft); transform:scale(1.015); }
+.spin{ animation:spin .9s linear infinite; } @keyframes spin{ to{ transform:rotate(360deg) } }
 .folder{ border:1px solid var(--border); border-radius:13px; padding:15px; cursor:pointer; background:var(--surface); transition:.16s; }
 .folder:hover{ border-color:var(--ring); transform:translateY(-2px); box-shadow:var(--shadow); }
 
@@ -305,10 +311,6 @@ const ANTROP = [
   { data: "07/11/2025", peso: 65.0, imc: 23.3, gord: 27.9, cint: 79, quad: 98, rcq: 0.81 },
   { data: "05/09/2025", peso: 70.8, imc: 25.4, gord: 31.0, cint: 84, quad: 100, rcq: 0.84 },
 ];
-const APPTS = [
-  { dia: "Qui, 10 jul", hora: "14:30", tipo: "Consulta de retorno", modo: "Online" },
-  { dia: "Sex, 07 ago", hora: "15:00", tipo: "Avaliação antropométrica", modo: "Presencial" },
-];
 const FIN = [
   { data: "12/06/2026", desc: "Consulta de retorno", valor: 250, forma: "Pix", status: "Pago" },
   { data: "08/05/2026", desc: "Consulta de retorno", valor: 250, forma: "Cartão", status: "Pago" },
@@ -327,7 +329,7 @@ const EXAMES = [
   { nome: "Colesterol total", val: "182", un: "mg/dL", ref: "< 190", flag: "ok" },
 ];
 type Food = [string, string, number];
-const FOODS: Food[] = [
+const FOODS_SEED: Food[] = [
   ["Ovo de galinha cozido", "1 un (50g)", 78], ["Pão integral", "1 fatia (30g)", 74],
   ["Banana prata", "1 un (90g)", 80], ["Aveia em flocos", "30 g", 117],
   ["Iogurte natural integral", "170 g", 102], ["Frango grelhado", "100 g", 165],
@@ -335,6 +337,14 @@ const FOODS: Food[] = [
   ["Brócolis cozido", "100 g", 35], ["Maçã", "1 un (130g)", 68],
   ["Abacate", "100 g", 96], ["Castanha-do-pará", "3 un (15g)", 98],
 ];
+type Componente = [string, string];
+type Prescricao = { nome: string; comp: Componente[]; pos: string; dur: string };
+const MANIPULADOS_SEED: Record<string, Prescricao[]> = {
+  [PORTAL_ACCESS.patientId]: [
+    { nome: "Suporte gestacional", comp: [["Ácido fólico", "400 mcg"], ["Ferro quelato (bisglicinato)", "30 mg"], ["DHA (ômega-3)", "200 mg"]], pos: "1 cápsula ao dia, após o almoço", dur: "90 dias" },
+    { nome: "Vitamina D3", comp: [["Colecalciferol", "2.000 UI"]], pos: "1 cápsula ao dia, pela manhã", dur: "60 dias" },
+  ],
+};
 
 /* ============================ APP ============================ */
 export default function PatientProfile() {
@@ -342,7 +352,7 @@ export default function PatientProfile() {
   const toast = useToast();
   const { id } = useParams();
   const nav = useNavigate();
-  const [allPatients] = usePersistentState(LOCAL_KEYS.patients, PATIENTS);
+  const [allPatients, setAllPatients] = usePersistentState(LOCAL_KEYS.patients, PATIENTS);
   const sel = allPatients.find((p) => p.id === id) ?? allPatients[0];
   const PAT = { ...BASE_PAT, nome: sel.nome, iniciais: initials(sel.nome), idade: sel.idade, sexo: sel.sexo, objetivo: sel.objetivo };
   const [active, setActive] = useState("perfil");
@@ -355,6 +365,65 @@ export default function PatientProfile() {
   const [copiedInfo, setCopiedInfo] = useState(false);
   const portalPath = `/portal/${PORTAL_ACCESS.slug}`;
   const portalUrl = `${window.location.origin}${portalPath}`;
+
+  /* ---- editar paciente ---- */
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ nome: "", email: "", sexo: "Feminino" as Patient["sexo"], dataNascimento: "", telefone: "", cpfCnpj: "", observacao: "" });
+  const openEdit = () => {
+    setEditForm({
+      nome: sel.nome, email: sel.email ?? "", sexo: sel.sexo, dataNascimento: sel.dataNascimento ?? "",
+      telefone: sel.telefone ?? "", cpfCnpj: sel.cpfCnpj ?? "", observacao: sel.observacao ?? "",
+    });
+    setEditOpen(true);
+  };
+  const saveEdit = () => {
+    const nome = editForm.nome.trim();
+    if (!nome) return;
+    setAllPatients(allPatients.map((p) => p.id !== sel.id ? p : {
+      ...p, nome, sexo: editForm.sexo,
+      idade: editForm.dataNascimento ? calcularIdade(editForm.dataNascimento) : p.idade,
+      email: editForm.email.trim() || undefined,
+      telefone: editForm.telefone.trim() || undefined,
+      cpfCnpj: editForm.cpfCnpj.trim() || undefined,
+      dataNascimento: editForm.dataNascimento || p.dataNascimento,
+      observacao: editForm.observacao.trim() || undefined,
+    }));
+    setEditOpen(false);
+    toast("Dados do paciente atualizados");
+  };
+
+  /* ---- agendamentos (compartilhado com a Agenda) ---- */
+  const [appointments, setAppointments] = usePersistentState<Appointment[]>(LOCAL_KEYS.appointments, AGENDA);
+  const apptsDoPaciente = appointments.filter((a) => a.paciente === sel.nome);
+  const [novoAgendamento, setNovoAgendamento] = useState(false);
+  const [agendaForm, setAgendaForm] = useState({ dia: "3", hora: "14:00", tipo: "Retorno", modo: "Online" as "Online" | "Presencial" });
+  const criarAgendamento = () => {
+    const next: Appointment = { id: uid(), paciente: sel.nome, hora: agendaForm.hora, dur: 60, tipo: agendaForm.tipo, modo: agendaForm.modo, dia: Number(agendaForm.dia) };
+    setAppointments([next, ...appointments]);
+    setNovoAgendamento(false);
+    toast("Agendamento criado");
+  };
+
+  /* ---- hidratação ---- */
+  const isPortalPatient = sel.id === PORTAL_ACCESS.patientId;
+  const [portalGoals, setPortalGoals] = usePersistentState(LOCAL_KEYS.portalGoals, PORTAL_GOALS);
+  const [hidratacaoMap, setHidratacaoMap] = usePersistentState<Record<string, { copos: number; meta: number }>>(LOCAL_KEYS.hidratacao, {});
+  const { registerHydrationComplete } = useStreak(sel.id);
+  const hidratacaoGoal = isPortalPatient ? portalGoals.find((g) => g.coposMeta != null) : undefined;
+  const hidratacaoGenerica = hidratacaoMap[sel.id] ?? { copos: 0, meta: 8 };
+  const copos = isPortalPatient ? (hidratacaoGoal?.coposAtuais ?? 0) : hidratacaoGenerica.copos;
+  const metaCopos = isPortalPatient ? (hidratacaoGoal?.coposMeta ?? 8) : hidratacaoGenerica.meta;
+  const [hidratacaoOpen, setHidratacaoOpen] = useState(false);
+  const setCopos = (n: number) => {
+    const clamped = Math.max(0, Math.min(metaCopos, n));
+    if (isPortalPatient && hidratacaoGoal) {
+      setPortalGoals(portalGoals.map((g) => g.id === hidratacaoGoal.id
+        ? { ...g, coposAtuais: clamped, progresso: Math.round((clamped / metaCopos) * 100) } : g));
+      if (clamped >= metaCopos) registerHydrationComplete(sel.nome);
+    } else {
+      setHidratacaoMap({ ...hidratacaoMap, [sel.id]: { copos: clamped, meta: metaCopos } });
+    }
+  };
 
 
   const SECTIONS: { id: string; label: string; icon: any; badge?: string }[] = [
@@ -390,16 +459,141 @@ export default function PatientProfile() {
   const [enFator, setEnFator] = useState(1.55);
   const [enObj, setEnObj] = useState("manutencao");
   const [enAjuste, setEnAjuste] = useState(15);
-  const [meals, setMeals] = useState<{ n: string; items: Food[] }[]>([
-    { n: "Café da manhã", items: [["Aveia em flocos", "30 g", 117], ["Iogurte natural integral", "170 g", 102], ["Banana prata", "1 un (90g)", 80]] },
-    { n: "Lanche da manhã", items: [["Castanha-do-pará", "3 un (15g)", 98], ["Maçã", "1 un (130g)", 68]] },
-    { n: "Almoço", items: [["Arroz integral cozido", "4 col (100g)", 124], ["Feijão carioca", "1 concha (80g)", 76], ["Frango grelhado", "100 g", 165], ["Brócolis cozido", "100 g", 35]] },
-    { n: "Lanche da tarde", items: [["Pão integral", "1 fatia (30g)", 74], ["Ovo de galinha cozido", "1 un (50g)", 78]] },
-    { n: "Jantar", items: [["Sopa de legumes", "1 prato (300g)", 180], ["Filé de tilápia", "120 g", 128]] },
-  ]);
+  const [planosMap, setPlanosMap] = usePersistentState<Record<string, PatientPlan>>(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
+  const plano = planosMap[sel.id];
+  const setPlano = (next: PatientPlan) => setPlanosMap({ ...planosMap, [sel.id]: next });
+  const [foods, setFoods] = usePersistentState<Food[]>(LOCAL_KEYS.foods, FOODS_SEED);
   const [foodPick, setFoodPick] = useState<number | null>(null);
   const [foodQ, setFoodQ] = useState("");
-  const planTotal = meals.reduce((a, m) => a + m.items.reduce((s, i) => s + i[2], 0), 0);
+  const [novoAlimento, setNovoAlimento] = useState(false);
+  const [novoAlimentoForm, setNovoAlimentoForm] = useState({ nome: "", porcao: "", kcal: "" });
+  const planTotal = plano ? plano.refeicoes.reduce((a, m) => a + m.itens.reduce((s, i) => s + (i.kcal ?? 0), 0), 0) : 0;
+  const updateMeal = (idx: number, updater: (m: PatientPlan["refeicoes"][number]) => PatientPlan["refeicoes"][number]) => {
+    if (!plano) return;
+    setPlano({ ...plano, refeicoes: plano.refeicoes.map((m, i) => i === idx ? updater(m) : m) });
+  };
+  const adicionarAoMeal = (mi: number, f: Food) => { updateMeal(mi, (mm) => ({ ...mm, itens: [...mm.itens, { nome: f[0], porcao: f[1], kcal: f[2] }] })); setFoodPick(null); toast(f[0] + " adicionado"); };
+  const criarAlimentoCustom = () => {
+    const nome = novoAlimentoForm.nome.trim();
+    if (!nome || foodPick === null) return;
+    const novo: Food = [nome, novoAlimentoForm.porcao.trim() || "1 porção", Number(novoAlimentoForm.kcal) || 0];
+    setFoods([...foods, novo]);
+    adicionarAoMeal(foodPick, novo);
+    setNovoAlimento(false);
+    setNovoAlimentoForm({ nome: "", porcao: "", kcal: "" });
+    toast(`"${nome}" criado e salvo na biblioteca`);
+  };
+
+  /* ---- manipulado ---- */
+  const [manipuladosMap, setManipuladosMap] = usePersistentState<Record<string, Prescricao[]>>(LOCAL_KEYS.manipulados, MANIPULADOS_SEED);
+  const prescricoes = manipuladosMap[sel.id] ?? [];
+  const setPrescricoes = (next: Prescricao[]) => setManipuladosMap({ ...manipuladosMap, [sel.id]: next });
+  const FORM_PRESCRICAO_VAZIO = { nome: "", pos: "", dur: "60 dias", comp: [["", ""]] as Componente[] };
+  const [novaPrescricaoOpen, setNovaPrescricaoOpen] = useState(false);
+  const [prescricaoForm, setPrescricaoForm] = useState(FORM_PRESCRICAO_VAZIO);
+  const abrirNovaPrescricao = () => { setPrescricaoForm(FORM_PRESCRICAO_VAZIO); setNovaPrescricaoOpen(true); };
+  const criarPrescricao = () => {
+    const nome = prescricaoForm.nome.trim();
+    const comp = prescricaoForm.comp.filter(([n]) => n.trim()) as Componente[];
+    if (!nome || comp.length === 0) return;
+    setPrescricoes([{ nome, comp, pos: prescricaoForm.pos.trim() || "—", dur: prescricaoForm.dur.trim() || "—" }, ...prescricoes]);
+    setNovaPrescricaoOpen(false);
+    toast("Prescrição manipulada criada");
+  };
+
+  /* ---- exame (upload do laudo) ---- */
+  const [exameFile, setExameFile] = useState<{ nome: string; tamanho: string; data: string } | null>({ nome: "Hemograma_completo.pdf", tamanho: "240 KB", data: "12/06/2026" });
+  const [exameDragOver, setExameDragOver] = useState(false);
+  const [exameExtraindo, setExameExtraindo] = useState(false);
+  const exameInputRef = useRef<HTMLInputElement>(null);
+  const processarArquivoExame = (file: File) => {
+    setExameExtraindo(true);
+    setTimeout(() => {
+      setExameFile({ nome: file.name, tamanho: `${Math.max(1, Math.round(file.size / 1024))} KB`, data: new Date().toLocaleDateString("pt-BR") });
+      setExameExtraindo(false);
+      toast("Valores extraídos com IA");
+    }, 1100);
+  };
+  const onDropExame = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setExameDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processarArquivoExame(file);
+  };
+
+  /* ---- questionários do paciente ---- */
+  const [questionariosMap, setQuestionariosMap] = usePersistentState<Record<string, PortalQuestionnaire[]>>(LOCAL_KEYS.questionariosPaciente, QUESTIONARIOS_SEED);
+  const questionarios = questionariosMap[sel.id] ?? [];
+  const setQuestionarios = (next: PortalQuestionnaire[]) => setQuestionariosMap({ ...questionariosMap, [sel.id]: next });
+
+  type PerguntaTipo = "texto" | "escala" | "opcao";
+  const FORM_QUESTIONARIO_VAZIO = { titulo: "", categoria: "Acompanhamento", prazo: "7 dias", perguntas: [{ texto: "", tipo: "texto" as PerguntaTipo }] };
+  const [novoQuestionarioOpen, setNovoQuestionarioOpen] = useState(false);
+  const [questionarioForm, setQuestionarioForm] = useState(FORM_QUESTIONARIO_VAZIO);
+  const abrirNovoQuestionario = () => { setQuestionarioForm(FORM_QUESTIONARIO_VAZIO); setNovoQuestionarioOpen(true); };
+  const addPerguntaForm = () => setQuestionarioForm({ ...questionarioForm, perguntas: [...questionarioForm.perguntas, { texto: "", tipo: "texto" }] });
+  const removePerguntaForm = (i: number) => setQuestionarioForm({ ...questionarioForm, perguntas: questionarioForm.perguntas.length > 1 ? questionarioForm.perguntas.filter((_, x) => x !== i) : questionarioForm.perguntas });
+  const updatePerguntaForm = (i: number, patch: Partial<{ texto: string; tipo: PerguntaTipo }>) => setQuestionarioForm({ ...questionarioForm, perguntas: questionarioForm.perguntas.map((p, x) => x === i ? { ...p, ...patch } : p) });
+  const criarQuestionario = () => {
+    const titulo = questionarioForm.titulo.trim();
+    const perguntasValidas = questionarioForm.perguntas.filter((p) => p.texto.trim());
+    if (!titulo || perguntasValidas.length === 0) return;
+    const novo: PortalQuestionnaire = {
+      id: uid(),
+      titulo,
+      categoria: questionarioForm.categoria.trim() || "Acompanhamento",
+      prazo: questionarioForm.prazo.trim() || "—",
+      status: "rascunho",
+      perguntas: perguntasValidas.map((p) => ({ id: uid(), texto: p.texto.trim(), tipo: p.tipo })),
+    };
+    setQuestionarios([novo, ...questionarios]);
+    setNovoQuestionarioOpen(false);
+    toast("Questionário criado como rascunho");
+  };
+  const enviarQuestionario = (q: PortalQuestionnaire) => {
+    setQuestionarios(questionarios.map((x) => x.id === q.id ? { ...x, status: "pendente" } : x));
+    toast(`"${q.titulo}" enviado a ${sel.nome.split(" ")[0]}`);
+    pushEvent({ tipo: "questionario", titulo: `Novo questionário: "${q.titulo}"`, audiencia: "paciente", patientId: sel.id, portalLink: "questionarios" });
+  };
+  const reenviarQuestionario = (q: PortalQuestionnaire) => toast(`Lembrete de "${q.titulo}" reenviado a ${sel.nome.split(" ")[0]}`);
+  const [verRespostasId, setVerRespostasId] = useState<string | null>(null);
+  const [registrarRespostasId, setRegistrarRespostasId] = useState<string | null>(null);
+  const [respostasForm, setRespostasForm] = useState<Record<string, string>>({});
+  const abrirRegistrarRespostas = (q: PortalQuestionnaire) => { setRespostasForm({}); setRegistrarRespostasId(q.id); };
+  const salvarRespostas = () => {
+    if (!registrarRespostasId) return;
+    setQuestionarios(questionarios.map((q) => q.id === registrarRespostasId ? { ...q, status: "respondido", respostas: respostasForm } : q));
+    setRegistrarRespostasId(null);
+    toast("Respostas registradas");
+  };
+
+  /* ---- criar plano alimentar do zero ---- */
+  const FORM_PLANO_VAZIO = { titulo: "", kcal: "2000", proteina: "100", agua: "2000", refeicoesSelecionadas: REFEICOES_PADRAO as string[] };
+  const [criarPlanoOpen, setCriarPlanoOpen] = useState(false);
+  const [planoForm, setPlanoForm] = useState(FORM_PLANO_VAZIO);
+  const toggleRefeicaoForm = (nome: string) => setPlanoForm((f) => ({
+    ...f, refeicoesSelecionadas: f.refeicoesSelecionadas.includes(nome) ? f.refeicoesSelecionadas.filter((x) => x !== nome) : [...f.refeicoesSelecionadas, nome],
+  }));
+  const abrirCriarPlano = () => {
+    setPlanoForm({ ...FORM_PLANO_VAZIO, titulo: `Plano alimentar — ${sel.nome.split(" ")[0]}` });
+    setCriarPlanoOpen(true);
+  };
+  const criarPlano = () => {
+    if (planoForm.refeicoesSelecionadas.length === 0) return;
+    const novo: PatientPlan = {
+      pacienteId: sel.id,
+      titulo: planoForm.titulo.trim() || "Plano alimentar",
+      periodo: "Atualizado hoje",
+      kcal: Number(planoForm.kcal) || 2000,
+      proteinaG: Number(planoForm.proteina) || 0,
+      aguaMl: Number(planoForm.agua) || 2000,
+      refeicoes: REFEICOES_PADRAO.filter((nome) => planoForm.refeicoesSelecionadas.includes(nome)).map((nome) => ({ nome, horario: HORARIOS_PADRAO[nome] ?? "—", itens: [] })),
+      substituicoes: [],
+    };
+    setPlano(novo);
+    setCriarPlanoOpen(false);
+    toast("Plano alimentar criado");
+  };
   const [diary, setDiary] = useState([
     { id: "d1", ref: "Almoço", quando: "Hoje · 12:40", g: ["#9DB99F", "#6E8C72"], desc: "Arroz integral, feijão, frango grelhado e salada de folhas. Bebi 1 copo de suco de laranja natural.", react: 1, liked: true, comments: [{ a: "Você", t: "Ótimo prato! Tenta trocar o suco por fruta in natura para reduzir o pico de açúcar." }] },
     { id: "d2", ref: "Café da manhã", quando: "Hoje · 08:15", g: ["#E0B48C", "#C98B5A"], desc: "Tapioca com ovo mexido e café sem açúcar.", react: 0, liked: false, comments: [] },
@@ -460,7 +654,7 @@ export default function PatientProfile() {
       { k: "gordura", label: "Massa gorda", un: "%", color: "var(--terra)", invert: true },
     ];
     const prev = EVO[EVO.length - 2];
-    const hasAppts = APPTS.length > 0;
+    const hasAppts = apptsDoPaciente.length > 0;
     return (
       <>
         {/* identidade (contexto — visível também no mobile) */}
@@ -478,8 +672,8 @@ export default function PatientProfile() {
             {copied ? <Check size={15} /> : <Link2 size={15} />}{copied ? "Link copiado" : "Link de acesso paciente"}</button>
           <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
             <Link className="btn ghost" to={portalPath}><ArrowRight size={15} />Abrir portal</Link>
-            <button className="btn ghost" onClick={() => toast("Registro de hidratação aberto")}><Droplets size={15} />Hidratação</button>
-            <button className="btn ghost" onClick={() => toast("Abrindo edição de cadastro")}><Pencil size={15} />Editar paciente</button>
+            <button className="btn ghost" onClick={() => setHidratacaoOpen(true)}><Droplets size={15} />Hidratação</button>
+            <button className="btn ghost" onClick={openEdit}><Pencil size={15} />Editar paciente</button>
           </div>
         </div>
 
@@ -523,13 +717,13 @@ export default function PatientProfile() {
           <div className="card pad">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span className="eyebrow">Agendamentos</span>
-              <button className="iconbtn" style={{ width: 30, height: 30 }} title="Novo agendamento" onClick={() => toast("Novo agendamento")}><Plus size={15} /></button>
+              <button className="iconbtn" style={{ width: 30, height: 30 }} title="Novo agendamento" onClick={() => setNovoAgendamento(true)}><Plus size={15} /></button>
             </div>
             {hasAppts ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-                {APPTS.map((a, i) => (
-                  <div key={i} style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div style={{ textAlign: "center", minWidth: 52 }}><div className="num" style={{ fontWeight: 600, fontSize: 15 }}>{a.hora}</div><div className="faint" style={{ fontSize: 11 }}>{a.dia}</div></div>
+                {apptsDoPaciente.map((a) => (
+                  <div key={a.id} style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <div style={{ textAlign: "center", minWidth: 52 }}><div className="num" style={{ fontWeight: 600, fontSize: 15 }}>{a.hora}</div><div className="faint" style={{ fontSize: 11 }}>{WEEKDAYS[a.dia]}</div></div>
                     <div style={{ width: 1, alignSelf: "stretch", background: "var(--border)" }} />
                     <div style={{ flex: 1 }}><div className="h3">{a.tipo}</div><span className={cx("chip", a.modo === "Online" ? "blue" : "sage")} style={{ marginTop: 4, height: 22 }}>{a.modo}</span></div>
                   </div>
@@ -599,6 +793,70 @@ export default function PatientProfile() {
             })}
           </div>
         </div>
+
+        {editOpen && (
+          <Modal title="Editar paciente" sub={sel.nome} onClose={() => setEditOpen(false)} max={560}
+            footer={<><button className="btn ghost" onClick={() => setEditOpen(false)}>Cancelar</button><button className="btn primary" disabled={!editForm.nome.trim()} onClick={saveEdit}><Check size={15} />Salvar alterações</button></>}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="field"><label>Nome *</label><input className="input" value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.currentTarget.value })} /></div>
+              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="field"><label>Email</label><input className="input" type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.currentTarget.value })} placeholder="Email (opcional)" /></div>
+                <div className="field"><label>Gênero</label><div className="seg" style={{ width: "100%" }}>{(["Masculino", "Feminino"] as const).map((s) => (
+                  <button key={s} style={{ flex: 1 }} className={cx(editForm.sexo === s && "on")} onClick={() => setEditForm({ ...editForm, sexo: s })}>{s}</button>
+                ))}</div></div>
+              </div>
+              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="field"><label>Data de nascimento</label><input className="input num" type="date" value={editForm.dataNascimento} onChange={(e) => setEditForm({ ...editForm, dataNascimento: e.currentTarget.value })} /></div>
+                <div className="field"><label>Celular com DDD</label><input className="input num" value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.currentTarget.value })} placeholder="(11) 98888-7777" /></div>
+              </div>
+              <div className="field"><label>CPF/CNPJ</label><input className="input num" value={editForm.cpfCnpj} onChange={(e) => setEditForm({ ...editForm, cpfCnpj: e.currentTarget.value })} placeholder="000.000.000-00" /></div>
+              <div className="field"><label>Observação</label><textarea className="input" rows={3} value={editForm.observacao} onChange={(e) => setEditForm({ ...editForm, observacao: e.currentTarget.value })} placeholder="Adicione uma observação sobre o paciente" /></div>
+            </div>
+          </Modal>
+        )}
+
+        {novoAgendamento && (
+          <Modal title="Novo agendamento" sub={sel.nome} onClose={() => setNovoAgendamento(false)}
+            footer={<><button className="btn ghost" onClick={() => setNovoAgendamento(false)}>Cancelar</button><button className="btn primary" onClick={criarAgendamento}><CalendarPlus size={15} />Agendar</button></>}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div className="field"><label>Dia da semana</label><select className="select" value={agendaForm.dia} onChange={(e) => setAgendaForm({ ...agendaForm, dia: e.currentTarget.value })}>{WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></div>
+                <div className="field"><label>Hora</label><input className="input num" value={agendaForm.hora} onChange={(e) => setAgendaForm({ ...agendaForm, hora: e.currentTarget.value })} placeholder="14:00" /></div>
+              </div>
+              <div className="field"><label>Tipo</label><input className="input" value={agendaForm.tipo} onChange={(e) => setAgendaForm({ ...agendaForm, tipo: e.currentTarget.value })} /></div>
+              <div className="field"><label>Modalidade</label><div className="seg" style={{ width: "100%" }}>
+                <button className={cx(agendaForm.modo === "Online" && "on")} style={{ flex: 1 }} onClick={() => setAgendaForm({ ...agendaForm, modo: "Online" })}>Online</button>
+                <button className={cx(agendaForm.modo === "Presencial" && "on")} style={{ flex: 1 }} onClick={() => setAgendaForm({ ...agendaForm, modo: "Presencial" })}>Presencial</button>
+              </div></div>
+            </div>
+          </Modal>
+        )}
+
+        {hidratacaoOpen && (
+          <Modal title="Hidratação" sub={sel.nome} onClose={() => setHidratacaoOpen(false)}
+            footer={<button className="btn ghost" onClick={() => setHidratacaoOpen(false)}>Fechar</button>}>
+            <div className="portal-water">
+              <div className="portal-water-cups">
+                {Array.from({ length: metaCopos }).map((_, i) => {
+                  const filled = i < copos;
+                  return (
+                    <button key={i} type="button" className={cx("portal-cup", filled && "filled")}
+                      onClick={() => setCopos(i + 1 === copos ? i : i + 1)} aria-label={`Copo ${i + 1} de ${metaCopos}`}>
+                      <GlassWater size={18} />
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="portal-water-readout">
+                <strong className="num" style={{ fontSize: 22 }}>{copos}</strong><span>de {metaCopos} copos hoje</span>
+              </div>
+              <div className="portal-water-actions">
+                <button className="iconbtn" onClick={() => setCopos(copos - 1)} disabled={copos <= 0} aria-label="Remover um copo"><Minus size={15} /></button>
+                <button className="btn primary sm" onClick={() => setCopos(copos + 1)} disabled={copos >= metaCopos}><Plus size={13} />1 copo</button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </>
     );
   }
@@ -707,41 +965,113 @@ export default function PatientProfile() {
     return (
       <>
         <div className="sechead">
-          <div><div className="h1">Plano alimentar</div><p>Versão atual <span className="chip sage" style={{ height: 21 }}>v3 · gestacional</span> revisada em 06/03/2026.</p></div>
+          <div>
+            <div className="h1">Plano alimentar</div>
+            <p>{plano ? <>{plano.titulo} <span className="chip sage" style={{ height: 21 }}>{plano.periodo}</span></> : `Nenhum plano alimentar criado para ${sel.nome.split(" ")[0]} ainda.`}</p>
+          </div>
           <div style={{ display: "flex", gap: 9 }}>
-            <button className="btn ghost" onClick={() => toast("Comparando versões v2 → v3")}>Histórico</button>
-            <button className="btn primary" onClick={() => toast("Plano enviado ao paciente")}><Send size={15} />Enviar ao paciente</button></div>
+            {plano && <button className="btn ghost" onClick={() => toast("Comparando versões")}>Histórico</button>}
+            {plano && <button className="btn primary" onClick={() => toast("Plano enviado ao paciente")}><Send size={15} />Enviar ao paciente</button>}
+            <button className={cx("btn", plano ? "ghost" : "primary")} onClick={abrirCriarPlano}><Plus size={15} />{plano ? "Novo plano" : "Criar plano alimentar"}</button>
+          </div>
         </div>
-        <div className="banner ok" style={{ marginBottom: 16 }}><Sparkles size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-          Total do dia: <b className="num" style={{ margin: "0 4px" }}>{planTotal} kcal</b> de meta de <b className="num" style={{ margin: "0 4px" }}>2.350 kcal</b>.</div>
-        <div className="grid" style={{ gap: 12 }}>
-          {meals.map((m, mi) => { const tot = m.items.reduce((s, i) => s + i[2], 0);
-            return (
-              <div key={mi} className="meal">
-                <div className="meal-h"><span className="h3">{m.n}</span><span className="num faint" style={{ fontSize: 12 }}>{tot} kcal</span></div>
-                {m.items.map((it, ii) => (
-                  <div key={ii} className="meal-item">
-                    <Salad size={15} className="faint" style={{ flexShrink: 0 }} /><span style={{ flex: 1 }}>{it[0]}</span>
-                    <span className="chip" style={{ height: 21 }}>{it[1]}</span>
-                    <span className="num faint" style={{ fontSize: 12, minWidth: 56, textAlign: "right" }}>{it[2]} kcal</span>
-                    <button className="iconbtn" style={{ width: 26, height: 26 }} onClick={() => setMeals(meals.map((mm, x) => x === mi ? { ...mm, items: mm.items.filter((_, y) => y !== ii) } : mm))}><Trash2 size={13} /></button>
-                  </div>
-                ))}
-                <div className="meal-item" style={{ background: "var(--surface2)" }}>
-                  <button className="btn subtle sm" onClick={() => { setFoodPick(mi); setFoodQ(""); }}><Plus size={13} />Adicionar alimento</button></div>
-              </div>);
-          })}
-        </div>
-        {foodPick !== null && (
-          <Modal title="Biblioteca de alimentos" sub={"Adicionando em " + meals[foodPick].n} onClose={() => setFoodPick(null)} max={460}>
+
+        {!plano ? (
+          <div className="card pad" style={{ textAlign: "center", padding: "48px 24px" }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--sage-soft)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}><Utensils size={26} color="var(--sage)" /></div>
+            <div className="h3">Comece definindo a meta e as refeições</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 4, maxWidth: "44ch", marginInline: "auto" }}>Depois de criado, você adiciona os alimentos de cada refeição pela biblioteca — e é esse plano que {sel.nome.split(" ")[0]} passa a ver no portal dela.</div>
+          </div>
+        ) : (
+          <>
+            <div className="banner ok" style={{ marginBottom: 16 }}><Sparkles size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+              Total do dia: <b className="num" style={{ margin: "0 4px" }}>{planTotal} kcal</b> de meta de <b className="num" style={{ margin: "0 4px" }}>{plano.kcal.toLocaleString("pt-BR")} kcal</b>. Esse é o plano que a paciente vê no portal dela.</div>
+            <div className="grid" style={{ gap: 12 }}>
+              {plano.refeicoes.map((m, mi) => { const tot = m.itens.reduce((s, i) => s + (i.kcal ?? 0), 0);
+                return (
+                  <div key={mi} className="meal">
+                    <div className="meal-h"><span className="h3">{m.nome}</span><span className="num faint" style={{ fontSize: 12 }}>{tot} kcal</span></div>
+                    {m.itens.map((it, ii) => (
+                      <div key={ii} className="meal-item">
+                        <Salad size={15} className="faint" style={{ flexShrink: 0 }} /><span style={{ flex: 1 }}>{it.nome}</span>
+                        {it.porcao && <span className="chip" style={{ height: 21 }}>{it.porcao}</span>}
+                        {it.kcal != null && <span className="num faint" style={{ fontSize: 12, minWidth: 56, textAlign: "right" }}>{it.kcal} kcal</span>}
+                        <button className="iconbtn" style={{ width: 26, height: 26 }} onClick={() => updateMeal(mi, (mm) => ({ ...mm, itens: mm.itens.filter((_, y) => y !== ii) }))}><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                    {m.itens.length === 0 && <div className="faint" style={{ fontSize: 12.5, padding: "10px 13px" }}>Nenhum alimento ainda.</div>}
+                    <div className="meal-item" style={{ background: "var(--surface2)" }}>
+                      <button className="btn subtle sm" onClick={() => { setFoodPick(mi); setFoodQ(""); }}><Plus size={13} />Adicionar alimento</button></div>
+                  </div>);
+              })}
+            </div>
+          </>
+        )}
+
+        {foodPick !== null && plano && (
+          <Modal title="Biblioteca de alimentos" sub={"Adicionando em " + plano.refeicoes[foodPick].nome} onClose={() => { setFoodPick(null); setNovoAlimento(false); }} max={460}>
             <div className="field" style={{ marginBottom: 12 }}><input autoFocus className="input" placeholder="Buscar alimento…" value={foodQ} onChange={(e) => setFoodQ(e.currentTarget.value)} /></div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
-              {FOODS.filter((f) => f[0].toLowerCase().includes(foodQ.toLowerCase())).map((f, i) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
+              {foods.filter((f) => f[0].toLowerCase().includes(foodQ.toLowerCase())).map((f, i) => (
                 <div key={i} className="meal-item" style={{ border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer" }}
-                  onClick={() => { setMeals(meals.map((mm, x) => x === foodPick ? { ...mm, items: [...mm.items, f] } : mm)); setFoodPick(null); toast(f[0] + " adicionado"); }}>
+                  onClick={() => adicionarAoMeal(foodPick, f)}>
                   <span style={{ flex: 1 }}>{f[0]}</span><span className="chip" style={{ height: 21 }}>{f[1]}</span>
                   <span className="num faint" style={{ fontSize: 12 }}>{f[2]} kcal</span><Plus size={14} className="faint" /></div>
               ))}
+              {foods.filter((f) => f[0].toLowerCase().includes(foodQ.toLowerCase())).length === 0 && (
+                <div className="faint" style={{ fontSize: 12.5, padding: "10px 2px" }}>Nenhum alimento encontrado.</div>
+              )}
+            </div>
+
+            {!novoAlimento ? (
+              <button className="btn ghost sm" style={{ width: "100%", marginTop: 12 }}
+                onClick={() => { setNovoAlimentoForm({ nome: foodQ, porcao: "", kcal: "" }); setNovoAlimento(true); }}>
+                <Plus size={13} />Criar alimento{foodQ ? ` "${foodQ}"` : " personalizado"}
+              </button>
+            ) : (
+              <div style={{ marginTop: 12, padding: 12, border: "1.5px dashed var(--border)", borderRadius: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="eyebrow" style={{ marginBottom: 2 }}>Novo alimento</div>
+                <input autoFocus className="input" placeholder="Nome do alimento" value={novoAlimentoForm.nome} onChange={(e) => setNovoAlimentoForm({ ...novoAlimentoForm, nome: e.currentTarget.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter" && novoAlimentoForm.nome.trim()) criarAlimentoCustom(); }} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="input" placeholder="Porção (ex.: 100 g)" value={novoAlimentoForm.porcao} onChange={(e) => setNovoAlimentoForm({ ...novoAlimentoForm, porcao: e.currentTarget.value })} />
+                  <input className="input num" style={{ maxWidth: 100 }} placeholder="kcal" inputMode="numeric" value={novoAlimentoForm.kcal} onChange={(e) => setNovoAlimentoForm({ ...novoAlimentoForm, kcal: e.currentTarget.value })} />
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                  <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => setNovoAlimento(false)}>Cancelar</button>
+                  <button className="btn primary sm" style={{ flex: 1 }} disabled={!novoAlimentoForm.nome.trim()} onClick={criarAlimentoCustom}><Check size={13} />Criar e adicionar</button>
+                </div>
+              </div>
+            )}
+          </Modal>
+        )}
+
+        {criarPlanoOpen && (
+          <Modal title={plano ? "Novo plano alimentar" : "Criar plano alimentar"} sub={sel.nome} onClose={() => setCriarPlanoOpen(false)} max={520}
+            footer={<>
+              <button className="btn ghost" onClick={() => setCriarPlanoOpen(false)}>Cancelar</button>
+              <button className="btn primary" disabled={planoForm.refeicoesSelecionadas.length === 0} onClick={criarPlano}><Check size={15} />Criar plano</button>
+            </>}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="field"><label>Título</label><input className="input" value={planoForm.titulo} onChange={(e) => setPlanoForm({ ...planoForm, titulo: e.currentTarget.value })} /></div>
+              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div className="field"><label>Meta (kcal)</label><input className="input num" value={planoForm.kcal} onChange={(e) => setPlanoForm({ ...planoForm, kcal: e.currentTarget.value })} inputMode="numeric" /></div>
+                <div className="field"><label>Proteína (g)</label><input className="input num" value={planoForm.proteina} onChange={(e) => setPlanoForm({ ...planoForm, proteina: e.currentTarget.value })} inputMode="numeric" /></div>
+                <div className="field"><label>Água (ml)</label><input className="input num" value={planoForm.agua} onChange={(e) => setPlanoForm({ ...planoForm, agua: e.currentTarget.value })} inputMode="numeric" /></div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 9 }}>Refeições incluídas</div>
+                <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                  {REFEICOES_PADRAO.map((nome) => {
+                    const on = planoForm.refeicoesSelecionadas.includes(nome);
+                    return (
+                      <span key={nome} className="chip" style={{ cursor: "pointer", height: 28, background: on ? "var(--sage-soft)" : "var(--surface2)", color: on ? "var(--sage-strong)" : "var(--muted)", borderColor: on ? "transparent" : "var(--border)" }} onClick={() => toggleRefeicaoForm(nome)}>
+                        {on && <Check size={11} />}{nome}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </Modal>
         )}
@@ -793,26 +1123,65 @@ export default function PatientProfile() {
 
   /* ---- MANIPULADO ---- */
   function renderManipulado() {
-    const presc = [
-      { nome: "Suporte gestacional", comp: [["Ácido fólico", "400 mcg"], ["Ferro quelato (bisglicinato)", "30 mg"], ["DHA (ômega-3)", "200 mg"]], pos: "1 cápsula ao dia, após o almoço", dur: "90 dias" },
-      { nome: "Vitamina D3", comp: [["Colecalciferol", "2.000 UI"]], pos: "1 cápsula ao dia, pela manhã", dur: "60 dias" },
-    ];
     return (
       <>
         <div className="sechead"><div><div className="h1">Manipulado</div><p>Prescrição de fórmulas manipuladas com componentes, dosagem e posologia.</p></div>
-          <button className="btn primary" onClick={() => toast("Nova prescrição manipulada")}><Plus size={16} />Nova prescrição</button></div>
-        <div className="grid gcols" style={{ gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {presc.map((p, i) => (
-            <div key={i} className="card pad">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}><div style={{ width: 30, height: 30, borderRadius: 9, background: "var(--terra-soft)", display: "grid", placeItems: "center" }}><Pill size={16} color="var(--terra)" /></div><span className="h3">{p.nome}</span></div>
-                <span className="chip" style={{ height: 22 }}>{p.dur}</span></div>
-              {p.comp.map((c, ci) => (<div key={ci} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderTop: ci ? "1px solid var(--border)" : "none" }}><span className="muted">{c[0]}</span><span className="num">{c[1]}</span></div>))}
-              <div style={{ marginTop: 10, padding: 10, background: "var(--surface2)", borderRadius: 10, fontSize: 12.5 }}><span className="faint">Posologia · </span>{p.pos}</div>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}><button className="btn ghost sm" style={{ flex: 1 }} onClick={() => toast("Receita gerada em PDF")}><FileText size={14} />Imprimir</button><button className="btn subtle sm" style={{ flex: 1 }} onClick={() => toast("Prescrição enviada")}><Send size={14} />Enviar</button></div>
+          <button className="btn primary" onClick={abrirNovaPrescricao}><Plus size={16} />Nova prescrição</button></div>
+        {prescricoes.length === 0 ? (
+          <div className="card pad" style={{ textAlign: "center", padding: "48px 24px" }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--terra-soft)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}><Pill size={26} color="var(--terra)" /></div>
+            <div className="h3">Nenhuma prescrição manipulada ainda</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 4, maxWidth: "40ch", marginInline: "auto" }}>Crie uma prescrição com os componentes, a dosagem e a posologia.</div>
+          </div>
+        ) : (
+          <div className="grid gcols" style={{ gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {prescricoes.map((p, i) => (
+              <div key={i} className="card pad">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}><div style={{ width: 30, height: 30, borderRadius: 9, background: "var(--terra-soft)", display: "grid", placeItems: "center" }}><Pill size={16} color="var(--terra)" /></div><span className="h3">{p.nome}</span></div>
+                  <span className="chip" style={{ height: 22 }}>{p.dur}</span></div>
+                {p.comp.map((c, ci) => (<div key={ci} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderTop: ci ? "1px solid var(--border)" : "none" }}><span className="muted">{c[0]}</span><span className="num">{c[1]}</span></div>))}
+                <div style={{ marginTop: 10, padding: 10, background: "var(--surface2)", borderRadius: 10, fontSize: 12.5 }}><span className="faint">Posologia · </span>{p.pos}</div>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button className="btn ghost sm" style={{ flex: 1 }} onClick={() => toast("Receita gerada em PDF")}><FileText size={14} />Imprimir</button>
+                  <button className="btn subtle sm" style={{ flex: 1 }} onClick={() => toast("Prescrição enviada")}><Send size={14} />Enviar</button>
+                  <button className="iconbtn" style={{ flexShrink: 0 }} onClick={() => setPrescricoes(prescricoes.filter((_, x) => x !== i))}><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {novaPrescricaoOpen && (
+          <Modal title="Nova prescrição manipulada" sub={sel.nome} onClose={() => setNovaPrescricaoOpen(false)} max={520}
+            footer={<>
+              <button className="btn ghost" onClick={() => setNovaPrescricaoOpen(false)}>Cancelar</button>
+              <button className="btn primary" disabled={!prescricaoForm.nome.trim() || !prescricaoForm.comp.some(([n]) => n.trim())} onClick={criarPrescricao}><Check size={15} />Criar prescrição</button>
+            </>}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="field"><label>Nome da fórmula</label><input className="input" autoFocus value={prescricaoForm.nome} onChange={(e) => setPrescricaoForm({ ...prescricaoForm, nome: e.currentTarget.value })} placeholder="Ex.: Suporte imunológico" /></div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 8 }}>Componentes</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {prescricaoForm.comp.map((c, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8 }}>
+                      <input className="input" style={{ flex: 1 }} placeholder="Componente (ex.: Vitamina D3)" value={c[0]}
+                        onChange={(e) => setPrescricaoForm({ ...prescricaoForm, comp: prescricaoForm.comp.map((x, xi) => xi === i ? [e.currentTarget.value, x[1]] : x) })} />
+                      <input className="input num" style={{ width: 130 }} placeholder="Dosagem" value={c[1]}
+                        onChange={(e) => setPrescricaoForm({ ...prescricaoForm, comp: prescricaoForm.comp.map((x, xi) => xi === i ? [x[0], e.currentTarget.value] : x) })} />
+                      <button className="iconbtn" style={{ flexShrink: 0 }} onClick={() => setPrescricaoForm({ ...prescricaoForm, comp: prescricaoForm.comp.filter((_, xi) => xi !== i) })} disabled={prescricaoForm.comp.length === 1}><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn subtle sm" style={{ marginTop: 8 }} onClick={() => setPrescricaoForm({ ...prescricaoForm, comp: [...prescricaoForm.comp, ["", ""]] })}><Plus size={13} />Adicionar componente</button>
+              </div>
+
+              <div className="field"><label>Posologia</label><input className="input" value={prescricaoForm.pos} onChange={(e) => setPrescricaoForm({ ...prescricaoForm, pos: e.currentTarget.value })} placeholder="Ex.: 1 cápsula ao dia, após o almoço" /></div>
+              <div className="field"><label>Duração</label><input className="input" value={prescricaoForm.dur} onChange={(e) => setPrescricaoForm({ ...prescricaoForm, dur: e.currentTarget.value })} placeholder="Ex.: 60 dias" /></div>
             </div>
-          ))}
-        </div>
+          </Modal>
+        )}
       </>
     );
   }
@@ -825,10 +1194,24 @@ export default function PatientProfile() {
         <div className="sechead"><div><div className="h1">Exame</div><p>Upload de laudos com extração de valores por IA e sinalização do que está fora da referência.</p></div></div>
         <div className="grid gcols" style={{ gridTemplateColumns: "300px 1fr", gap: 16 }}>
           <div>
-            <div className="upload" onClick={() => toast("Selecione um laudo PDF")}><Upload size={22} style={{ marginBottom: 8 }} /><div style={{ fontWeight: 600, fontSize: 13 }}>Arraste o laudo</div><div className="faint" style={{ fontSize: 12, marginTop: 2 }}>PDF até 10 MB</div></div>
-            <div className="card pad" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
-              <FileText size={18} color="var(--terra)" /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>Hemograma_completo.pdf</div><div className="faint" style={{ fontSize: 11 }}>240 KB · 12/06/2026</div></div>
-              <span className="chip sage" style={{ height: 22 }}><Sparkles size={11} />IA</span></div>
+            <div className={cx("upload", exameDragOver && "drag")} style={{ cursor: exameExtraindo ? "default" : "pointer" }}
+              onClick={() => !exameExtraindo && exameInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); if (!exameExtraindo) setExameDragOver(true); }}
+              onDragLeave={() => setExameDragOver(false)}
+              onDrop={(e) => { if (!exameExtraindo) onDropExame(e); else e.preventDefault(); }}>
+              <input ref={exameInputRef} type="file" accept=".pdf,image/*" style={{ display: "none" }}
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) processarArquivoExame(file); e.currentTarget.value = ""; }} />
+              {exameExtraindo ? (
+                <><RefreshCw size={22} className="spin" style={{ marginBottom: 8 }} /><div style={{ fontWeight: 600, fontSize: 13 }}>Extraindo valores…</div></>
+              ) : (
+                <><Upload size={22} style={{ marginBottom: 8 }} /><div style={{ fontWeight: 600, fontSize: 13 }}>{exameDragOver ? "Solte para enviar" : "Arraste o laudo"}</div><div className="faint" style={{ fontSize: 12, marginTop: 2 }}>ou clique para selecionar · PDF até 10 MB</div></>
+              )}
+            </div>
+            {exameFile && (
+              <div className="card pad" style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                <FileText size={18} color="var(--terra)" /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{exameFile.nome}</div><div className="faint" style={{ fontSize: 11 }}>{exameFile.tamanho} · {exameFile.data}</div></div>
+                <span className="chip sage" style={{ height: 22 }}><Sparkles size={11} />IA</span></div>
+            )}
           </div>
           <div className="card" style={{ overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -877,26 +1260,114 @@ export default function PatientProfile() {
 
   /* ---- QUESTIONÁRIO ---- */
   function renderQuestionario() {
-    const qs = [
-      { t: "Recordatório alimentar de 24h", st: "Respondido", c: "sage", d: "Respondido em 10/06" },
-      { t: "Qualidade do sono — Pittsburgh", st: "Enviado", c: "amber", d: "Aguardando resposta" },
-      { t: "Frequência alimentar (QFA)", st: "Rascunho", c: "", d: "Não enviado" },
-    ];
+    const STATUS_META: Record<string, { label: string; tone: string }> = {
+      rascunho: { label: "Rascunho", tone: "" },
+      pendente: { label: "Enviado", tone: "amber" },
+      respondido: { label: "Respondido", tone: "sage" },
+    };
+    const verRespostasQ = questionarios.find((q) => q.id === verRespostasId);
+    const registrarRespostasQ = questionarios.find((q) => q.id === registrarRespostasId);
     return (
       <>
-        <div className="sechead"><div><div className="h1">Questionário</div><p>Questionários customizáveis enviados ao paciente e suas respostas.</p></div>
-          <button className="btn primary" onClick={() => toast("Criando novo questionário")}><Plus size={16} />Novo questionário</button></div>
-        <div className="grid" style={{ gap: 12 }}>
-          {qs.map((q, i) => (
-            <div key={i} className="card pad" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: "var(--sage-soft)", display: "grid", placeItems: "center" }}><ListChecks size={18} color="var(--sage)" /></div>
-              <div style={{ flex: 1, minWidth: 160 }}><div className="h3">{q.t}</div><div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{q.d}</div></div>
-              <span className={cx("chip", q.c)} style={{ height: 24 }}>{q.st}</span>
-              {q.st === "Respondido" ? <button className="btn ghost sm" onClick={() => toast("Abrindo respostas")}>Ver respostas</button>
-                : <button className="btn subtle sm" onClick={() => toast(q.st === "Enviado" ? "Lembrete reenviado" : "Questionário enviado")}><Send size={13} />{q.st === "Enviado" ? "Reenviar" : "Enviar"}</button>}
+        <div className="sechead"><div><div className="h1">Questionário</div><p>Questionários customizáveis enviados a {sel.nome.split(" ")[0]} e suas respostas.</p></div>
+          <button className="btn primary" onClick={abrirNovoQuestionario}><Plus size={16} />Novo questionário</button></div>
+
+        {questionarios.length === 0 ? (
+          <div className="card pad" style={{ textAlign: "center", padding: "48px 24px" }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--sage-soft)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}><ListChecks size={26} color="var(--sage)" /></div>
+            <div className="h3">Nenhum questionário ainda</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 4, maxWidth: "40ch", marginInline: "auto" }}>Crie um questionário com as perguntas que quiser e envie para {sel.nome.split(" ")[0]}.</div>
+          </div>
+        ) : (
+          <div className="grid" style={{ gap: 12 }}>
+            {questionarios.map((q) => {
+              const meta = STATUS_META[q.status];
+              const desc = q.status === "rascunho" ? `${q.perguntas.length} pergunta(s) · não enviado`
+                : q.status === "pendente" ? `Prazo: ${q.prazo} · aguardando resposta`
+                : `${q.perguntas.length} pergunta(s) respondida(s)`;
+              return (
+                <div key={q.id} className="card pad" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: "var(--sage-soft)", display: "grid", placeItems: "center" }}><ListChecks size={18} color="var(--sage)" /></div>
+                  <div style={{ flex: 1, minWidth: 160 }}><div className="h3">{q.titulo}</div><div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{desc}</div></div>
+                  <span className={cx("chip", meta.tone)} style={{ height: 24 }}>{meta.label}</span>
+                  {q.status === "rascunho" && <button className="btn subtle sm" onClick={() => enviarQuestionario(q)}><Send size={13} />Enviar</button>}
+                  {q.status === "pendente" && <>
+                    <button className="btn subtle sm" onClick={() => reenviarQuestionario(q)}><Send size={13} />Reenviar</button>
+                    <button className="btn ghost sm" onClick={() => abrirRegistrarRespostas(q)}>Registrar respostas</button>
+                  </>}
+                  {q.status === "respondido" && <button className="btn ghost sm" onClick={() => setVerRespostasId(q.id)}>Ver respostas</button>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {novoQuestionarioOpen && (
+          <Modal title="Novo questionário" sub={sel.nome} onClose={() => setNovoQuestionarioOpen(false)} max={560}
+            footer={<>
+              <button className="btn ghost" onClick={() => setNovoQuestionarioOpen(false)}>Cancelar</button>
+              <button className="btn primary" disabled={!questionarioForm.titulo.trim() || !questionarioForm.perguntas.some((p) => p.texto.trim())} onClick={criarQuestionario}><Check size={15} />Criar questionário</button>
+            </>}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="field"><label>Título</label><input className="input" autoFocus value={questionarioForm.titulo} onChange={(e) => setQuestionarioForm({ ...questionarioForm, titulo: e.currentTarget.value })} placeholder="Ex.: Check-in semanal" /></div>
+              <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="field"><label>Categoria</label><input className="input" value={questionarioForm.categoria} onChange={(e) => setQuestionarioForm({ ...questionarioForm, categoria: e.currentTarget.value })} /></div>
+                <div className="field"><label>Prazo</label><input className="input" value={questionarioForm.prazo} onChange={(e) => setQuestionarioForm({ ...questionarioForm, prazo: e.currentTarget.value })} placeholder="Ex.: 7 dias" /></div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 8 }}>Perguntas</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {questionarioForm.perguntas.map((p, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8 }}>
+                      <input className="input" style={{ flex: 1 }} placeholder={`Pergunta ${i + 1}…`} value={p.texto} onChange={(e) => updatePerguntaForm(i, { texto: e.currentTarget.value })} />
+                      <select className="select" style={{ width: 130, flexShrink: 0 }} value={p.tipo} onChange={(e) => updatePerguntaForm(i, { tipo: e.currentTarget.value as PerguntaTipo })}>
+                        <option value="texto">Texto</option><option value="escala">Escala 1–5</option><option value="opcao">Múltipla escolha</option>
+                      </select>
+                      <button className="iconbtn" style={{ flexShrink: 0 }} onClick={() => removePerguntaForm(i)} disabled={questionarioForm.perguntas.length === 1}><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+                <button className="btn subtle sm" style={{ marginTop: 8 }} onClick={addPerguntaForm}><Plus size={13} />Adicionar pergunta</button>
+              </div>
             </div>
-          ))}
-        </div>
+          </Modal>
+        )}
+
+        {verRespostasQ && (
+          <Modal title="Respostas" sub={verRespostasQ.titulo} onClose={() => setVerRespostasId(null)} max={480}
+            footer={<button className="btn ghost" onClick={() => setVerRespostasId(null)}>Fechar</button>}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {verRespostasQ.perguntas.map((p) => (
+                <div key={p.id}>
+                  <div className="muted" style={{ fontSize: 12.5 }}>{p.texto}</div>
+                  <div style={{ fontWeight: 600, marginTop: 3, fontSize: 14 }}>{verRespostasQ.respostas?.[p.id] || "—"}</div>
+                </div>
+              ))}
+            </div>
+          </Modal>
+        )}
+
+        {registrarRespostasQ && (
+          <Modal title="Registrar respostas" sub={registrarRespostasQ.titulo} onClose={() => setRegistrarRespostasId(null)} max={480}
+            footer={<><button className="btn ghost" onClick={() => setRegistrarRespostasId(null)}>Cancelar</button><button className="btn primary" onClick={salvarRespostas}><Check size={15} />Salvar respostas</button></>}>
+            <p className="muted" style={{ fontSize: 12.5, marginTop: -4, marginBottom: 14 }}>Use isso para registrar respostas obtidas por telefone ou presencialmente.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {registrarRespostasQ.perguntas.map((p) => (
+                <div className="field" key={p.id}>
+                  <label>{p.texto}</label>
+                  {p.tipo === "opcao" ? (
+                    <select className="select" value={respostasForm[p.id] ?? ""} onChange={(e) => setRespostasForm({ ...respostasForm, [p.id]: e.currentTarget.value })}>
+                      <option value="" disabled>Selecione…</option>
+                      {p.opcoes?.map((op) => <option key={op}>{op}</option>)}
+                    </select>
+                  ) : (
+                    <input className="input" value={respostasForm[p.id] ?? ""} onChange={(e) => setRespostasForm({ ...respostasForm, [p.id]: e.currentTarget.value })} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </Modal>
+        )}
       </>
     );
   }

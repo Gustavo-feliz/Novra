@@ -6,6 +6,17 @@ export const pct = (a: number, b: number) => +(((b - a) / a) * 100).toFixed(1);
 export const initials = (name: string) =>
   name.split(" ").filter(Boolean).slice(0, 2).map((s) => s[0]).join("").toUpperCase();
 
+export function calcularIdade(dataNascimento: string): number {
+  const nascimento = new Date(dataNascimento);
+  if (Number.isNaN(nascimento.getTime())) return 0;
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - nascimento.getFullYear();
+  const aindaNaoFezAniversario = hoje.getMonth() < nascimento.getMonth()
+    || (hoje.getMonth() === nascimento.getMonth() && hoje.getDate() < nascimento.getDate());
+  if (aindaNaoFezAniversario) idade--;
+  return Math.max(0, idade);
+}
+
 export function logout(nav: (path: string) => void) {
   try { localStorage.removeItem("nutriflow_demo_role"); } catch { /* ignore */ }
   nav("/login");

@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export const LOCAL_KEYS = {
   patients: "nutriflow.patients",
   diaries: "nutriflow.diaries",
-  portalPlan: "nutriflow.portal.plan",
+  planosAlimentares: "nutriflow.planos.alimentares",
   portalGoals: "nutriflow.portal.goals",
   portalDiary: "nutriflow.portal.diary",
-  portalQuestionnaires: "nutriflow.portal.questionnaires",
+  questionariosPaciente: "nutriflow.questionarios.paciente",
   portalFinance: "nutriflow.portal.finance",
   appointmentRequests: "nutriflow.appointment.requests",
   appointments: "nutriflow.appointments",
@@ -17,6 +17,10 @@ export const LOCAL_KEYS = {
   events: "nutriflow.events",
   streaks: "nutriflow.streaks",
   achievements: "nutriflow.achievements",
+  hidratacao: "nutriflow.hidratacao",
+  slides: "nutriflow.slides",
+  foods: "nutriflow.foods",
+  manipulados: "nutriflow.manipulados",
 };
 
 export type AppointmentRequest = {
@@ -57,15 +61,21 @@ export function writeLocal<T>(key: string, value: T) {
 
 export function usePersistentState<T>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(() => readLocal(key, fallback));
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const fallbackRef = useRef(fallback);
+  fallbackRef.current = fallback;
 
-  useEffect(() => {
-    writeLocal(key, value);
-  }, [key, value]);
-
+  // Sincroniza com mudanças feitas por OUTRO componente/aba — só atualiza o
+  // estado local, nunca regrava no storage. Regravar aqui é o que causava o
+  // loop infinito (grava → dispara evento → todo consumidor relê com uma
+  // referência nova do JSON.parse → "muda" de novo → regrava → ...), que por
+  // sua vez sobrescrevia dados recém-criados (ex.: paciente novo) de volta
+  // para o valor antigo.
   useEffect(() => {
     const sync = (event: Event) => {
       const custom = event as CustomEvent<{ key?: string }>;
-      if (!custom.detail?.key || custom.detail.key === key) setValue(readLocal(key, fallback));
+      if (!custom.detail?.key || custom.detail.key === key) setValue(readLocal(key, fallbackRef.current));
     };
     window.addEventListener("storage", sync);
     window.addEventListener("nutriflow:localdata", sync);
@@ -73,7 +83,18 @@ export function usePersistentState<T>(key: string, fallback: T) {
       window.removeEventListener("storage", sync);
       window.removeEventListener("nutriflow:localdata", sync);
     };
-  }, [fallback, key]);
+  }, [key]);
 
-  return [value, setValue] as const;
+  // Grava de forma síncrona, no próprio call stack de quem chamou o setter —
+  // não dentro de um callback de useState/useEffect. Se isso ficar pendente
+  // para o React processar depois, uma navegação imediata (nav() logo após
+  // o setter) desmonta o componente antes da gravação acontecer.
+  const setPersistent = useCallback((next: T | ((prev: T) => T)) => {
+    const resolved = typeof next === "function" ? (next as (prev: T) => T)(valueRef.current) : next;
+    writeLocal(key, resolved);
+    valueRef.current = resolved;
+    setValue(resolved);
+  }, [key]);
+
+  return [value, setPersistent] as const;
 }

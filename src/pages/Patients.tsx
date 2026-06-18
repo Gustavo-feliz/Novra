@@ -1,13 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search, UserPlus, LayoutGrid, Columns3, ChevronRight } from "lucide-react";
-import { Card, Button, Avatar, Chip, Input, Field, Segmented, Modal } from "../components/ui";
+import { Search, UserPlus, LayoutGrid, Columns3, ChevronRight, Camera, Plus, X } from "lucide-react";
+import { Card, Button, Avatar, Chip, Input, Field, Textarea, Segmented, Modal } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { PATIENTS, STATUS_META } from "../lib/mock";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import type { Patient, PatientStatus } from "../lib/types";
-import { initials, cx, uid } from "../lib/utils";
+import { initials, cx, uid, calcularIdade } from "../lib/utils";
 
 type StatusFilter = "todos" | PatientStatus;
 const KANBAN: { key: PatientStatus; label: string }[] = [
@@ -50,7 +50,10 @@ export default function Patients() {
   const [status, setStatus] = useState<StatusFilter>("todos");
   const [view, setView] = useState<"grid" | "kanban">("grid");
   const [novo, setNovo] = useState(false);
-  const [form, setForm] = useState({ nome: "", idade: "", sexo: "Feminino" as Patient["sexo"], objetivo: "Emagrecimento" });
+  const FORM_VAZIO = { nome: "", email: "", sexo: "Masculino" as Patient["sexo"], dataNascimento: "", telefone: "", cpfCnpj: "", observacao: "" };
+  const [form, setForm] = useState(FORM_VAZIO);
+  const [formTags, setFormTags] = useState<string[]>([]);
+  const [addingTag, setAddingTag] = useState(false);
 
   useEffect(() => { if (params.get("novo")) { setNovo(true); setParams({}, { replace: true }); } }, [params, setParams]);
 
@@ -58,27 +61,34 @@ export default function Patients() {
     (status === "todos" || p.status === status) && p.nome.toLowerCase().includes(q.toLowerCase())
   ), [patients, q, status]);
 
+  const resetForm = () => { setForm(FORM_VAZIO); setFormTags([]); setAddingTag(false); };
+  const fecharModal = () => { setNovo(false); resetForm(); };
+  const podeCriar = !!(form.nome.trim() && form.dataNascimento && form.telefone.trim());
+
   const criarPaciente = () => {
-    const nome = form.nome.trim();
-    if (!nome) return;
+    if (!podeCriar) return;
     const novoPaciente: Patient = {
       id: uid(),
-      nome,
-      idade: Number(form.idade) || 0,
+      nome: form.nome.trim(),
+      idade: calcularIdade(form.dataNascimento),
       sexo: form.sexo,
-      objetivo: form.objetivo as Patient["objetivo"],
+      objetivo: "Clínico",
       status: "ativo",
-      tags: [],
+      tags: formTags,
       ultimaConsulta: "—",
       proximaAcao: "Primeira consulta",
       adesao: 0,
       cor: NOVO_PALETTE[patients.length % NOVO_PALETTE.length],
+      email: form.email.trim() || undefined,
+      telefone: form.telefone.trim(),
+      cpfCnpj: form.cpfCnpj.trim() || undefined,
+      dataNascimento: form.dataNascimento,
+      observacao: form.observacao.trim() || undefined,
     };
     setPatients([novoPaciente, ...patients]);
-    setNovo(false);
     setStatus("todos");
-    setForm({ nome: "", idade: "", sexo: "Feminino", objetivo: "Emagrecimento" });
     toast(`Paciente "${novoPaciente.nome}" criado`);
+    fecharModal();
     nav(`/patients/${novoPaciente.id}`);
   };
 
@@ -140,30 +150,75 @@ export default function Patients() {
       )}
 
       {novo && (
-        <Modal title="Novo paciente" sub="Cadastro rápido — você completa os dados depois" onClose={() => setNovo(false)}
+        <Modal title="Criar paciente" sub="Cadastro completo do paciente" onClose={fecharModal} max={560}
           footer={<>
-            <Button variant="ghost" onClick={() => setNovo(false)}>Cancelar</Button>
-            <Button variant="primary" disabled={!form.nome.trim()} onClick={criarPaciente}>Criar paciente</Button>
+            <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
+            <Button variant="primary" disabled={!podeCriar} onClick={criarPaciente}>Criar paciente</Button>
           </>}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Nome completo">
-              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Ex.: Ana Beatriz Souza"
-                onKeyDown={(e) => { if (e.key === "Enter" && form.nome.trim()) criarPaciente(); }} />
-            </Field>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-end" }}>
+              <div className="upload" style={{ width: 64, height: 64, borderRadius: "50%", padding: 0, display: "grid", placeItems: "center", flexShrink: 0 }}
+                onClick={() => toast("Selecione uma foto do paciente")} title="Adicionar foto">
+                <Camera size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <Field label="Nome *">
+                  <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Nome"
+                    onKeyDown={(e) => { if (e.key === "Enter" && podeCriar) criarPaciente(); }} />
+                </Field>
+              </div>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <Field label="Idade"><Input className="num" value={form.idade} onChange={(e) => setForm({ ...form, idade: e.target.value })} inputMode="numeric" /></Field>
-              <Field label="Sexo">
+              <Field label="Email">
+                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email (opcional)" />
+              </Field>
+              <Field label="Gênero *">
                 <div className="seg" style={{ width: "100%" }}>
-                  {(["Feminino", "Masculino"] as const).map((s) => (
+                  {(["Masculino", "Feminino"] as const).map((s) => (
                     <button key={s} style={{ flex: 1 }} className={cx(form.sexo === s && "on")} onClick={() => setForm({ ...form, sexo: s })}>{s}</button>
                   ))}
                 </div>
               </Field>
             </div>
-            <Field label="Objetivo">
-              <select className="select" value={form.objetivo} onChange={(e) => setForm({ ...form, objetivo: e.target.value })}>
-                {["Emagrecimento", "Hipertrofia", "Gestacional", "Esportivo", "Clínico", "Infantil"].map((o) => <option key={o}>{o}</option>)}
-              </select>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="Data de nascimento *">
+                <Input type="date" className="num" value={form.dataNascimento} onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })} />
+              </Field>
+              <Field label="Celular com DDD *">
+                <div style={{ display: "flex", gap: 7 }}>
+                  <div className="input" style={{ width: 64, flexShrink: 0, display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 13 }}>BR +55</div>
+                  <Input className="num" style={{ flex: 1 }} value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} placeholder="(11) 98888-7777" />
+                </div>
+              </Field>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="CPF/CNPJ">
+                <div style={{ display: "flex", gap: 7 }}>
+                  <div className="input" style={{ width: 48, flexShrink: 0, display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 13 }}>BR</div>
+                  <Input className="num" style={{ flex: 1 }} value={form.cpfCnpj} onChange={(e) => setForm({ ...form, cpfCnpj: e.target.value })} placeholder="000.000.000-00" />
+                </div>
+              </Field>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)", marginBottom: 8 }}>Tags</div>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                {formTags.map((t) => (
+                  <span key={t} className="chip">{t}<button onClick={() => setFormTags(formTags.filter((x) => x !== t))}><X size={11} /></button></span>
+                ))}
+                {addingTag ? (
+                  <input autoFocus className="input" style={{ height: 25, width: 130, fontSize: 12 }} placeholder="nova etiqueta…"
+                    onKeyDown={(e) => { if (e.key === "Enter" && e.currentTarget.value.trim()) { setFormTags([...formTags, e.currentTarget.value.trim()]); setAddingTag(false); } if (e.key === "Escape") setAddingTag(false); }}
+                    onBlur={() => setAddingTag(false)} />
+                ) : <span className="chip add" onClick={() => setAddingTag(true)}><Plus size={12} /></span>}
+              </div>
+            </div>
+
+            <Field label="Observação">
+              <Textarea rows={3} value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} placeholder="Adicione uma observação sobre o paciente" />
             </Field>
           </div>
         </Modal>

@@ -37,13 +37,14 @@ import {
   CLINIC,
   DIARIES,
   PATIENTS,
-  PATIENT_PLAN,
+  PLANOS_SEED,
   PORTAL_ACCESS,
   PORTAL_FINANCE,
   PORTAL_GOALS,
   PORTAL_INSTRUCTIONS,
-  PORTAL_QUESTIONNAIRES,
+  QUESTIONARIOS_SEED,
 } from "../lib/mock";
+import type { PatientPlan, PortalQuestionnaire } from "../lib/types";
 import { LOCAL_KEYS, type AppointmentRequest, usePersistentState } from "../lib/localData";
 import { pushEvent } from "../lib/events";
 import { ACHIEVEMENTS, computeUnlocked, useAchievements, useStreak } from "../lib/engagement";
@@ -69,6 +70,13 @@ const SEED_PORTAL_POSTS: PortalPost[] = DIARIES.filter((d) => d.pacienteId === P
   cor: d.cor,
   reacoes: d.reacoes,
 }));
+
+function useQuestionariosPaciente(patientId: string) {
+  const [map, setMap] = usePersistentState<Record<string, PortalQuestionnaire[]>>(LOCAL_KEYS.questionariosPaciente, QUESTIONARIOS_SEED);
+  const questionarios = map[patientId] ?? [];
+  const setQuestionarios = (next: PortalQuestionnaire[]) => setMap({ ...map, [patientId]: next });
+  return { questionarios, setQuestionarios };
+}
 
 const MAIN_NAV = [
   { to: "", label: "Inicio", icon: Home, end: true },
@@ -239,9 +247,11 @@ export default function Portal() {
 
 function PortalHome({ patientName }: { patientName: string }) {
   const navigate = useNavigate();
-  const [questionnaires] = usePersistentState(LOCAL_KEYS.portalQuestionnaires, PORTAL_QUESTIONNAIRES);
+  const { questionarios: questionnaires } = useQuestionariosPaciente(PORTAL_ACCESS.patientId);
   const [goals] = usePersistentState(LOCAL_KEYS.portalGoals, PORTAL_GOALS);
   const [finance] = usePersistentState(LOCAL_KEYS.portalFinance, PORTAL_FINANCE);
+  const [planos] = usePersistentState<Record<string, PatientPlan>>(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
+  const plan = planos[PORTAL_ACCESS.patientId] ?? PLANOS_SEED[PORTAL_ACCESS.patientId];
   const { streak } = useStreak(PORTAL_ACCESS.patientId);
   const pending = questionnaires.filter((q) => q.status === "pendente").length;
   const openInvoices = finance.filter((f) => f.status !== "Pago").length;
@@ -256,7 +266,7 @@ function PortalHome({ patientName }: { patientName: string }) {
           <p>Seu plano esta ativo e sua proxima consulta esta organizada por aqui.</p>
         </div>
         <div className="portal-hero-stat">
-          <strong>{PATIENT_PLAN.kcal}</strong>
+          <strong>{plan.kcal}</strong>
           <span>kcal/dia</span>
         </div>
       </section>
@@ -283,8 +293,8 @@ function PortalHome({ patientName }: { patientName: string }) {
       </div>
 
       <div className="portal-grid three">
-        <Metric label="Agua" value={`${PATIENT_PLAN.aguaMl / 1000} L`} detail="meta diaria" />
-        <Metric label="Proteina" value={`${PATIENT_PLAN.proteinaG} g`} detail="meta diaria" />
+        <Metric label="Agua" value={`${plan.aguaMl / 1000} L`} detail="meta diaria" />
+        <Metric label="Proteina" value={`${plan.proteinaG} g`} detail="meta diaria" />
         <Metric label="Metas" value={`${avgGoals}%`} detail="progresso medio" />
       </div>
       {openInvoices > 0 && (
@@ -303,7 +313,8 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
 }
 
 function PortalPlan() {
-  const [plan] = usePersistentState(LOCAL_KEYS.portalPlan, PATIENT_PLAN);
+  const [planos] = usePersistentState<Record<string, PatientPlan>>(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
+  const plan = planos[PORTAL_ACCESS.patientId] ?? PLANOS_SEED[PORTAL_ACCESS.patientId];
   return (
     <div className="portal-page">
       <PageHead title="Meu plano alimentar" sub={`${plan.titulo} · ${plan.periodo}`} />
@@ -316,7 +327,13 @@ function PortalPlan() {
         {plan.refeicoes.map((meal) => (
           <article className="meal" key={meal.nome}>
             <div className="meal-h"><strong>{meal.nome}</strong><span className="num">{meal.horario}</span></div>
-            {meal.itens.map((item) => <div className="meal-item" key={item}><Check size={14} color="var(--sage)" />{item}</div>)}
+            {meal.itens.map((item, i) => (
+              <div className="meal-item" key={item.nome + i}>
+                <Check size={14} color="var(--sage)" />
+                <span style={{ flex: 1 }}>{item.nome}{item.porcao ? ` · ${item.porcao}` : ""}</span>
+                {item.kcal != null && <span className="faint num" style={{ fontSize: 11.5 }}>{item.kcal} kcal</span>}
+              </div>
+            ))}
             {meal.observacao && <div className="portal-note">{meal.observacao}</div>}
           </article>
         ))}
@@ -381,7 +398,8 @@ function PortalDiary() {
 
 function PortalGoals() {
   const [goals, setGoals] = usePersistentState(LOCAL_KEYS.portalGoals, PORTAL_GOALS);
-  const [questionnaires] = usePersistentState(LOCAL_KEYS.portalQuestionnaires, PORTAL_QUESTIONNAIRES);
+  const { questionarios: questionariosTodos } = useQuestionariosPaciente(PORTAL_ACCESS.patientId);
+  const questionnaires = questionariosTodos.filter((q) => q.status !== "rascunho");
   const [diaryPosts] = usePersistentState(LOCAL_KEYS.portalDiary, SEED_PORTAL_POSTS);
   const { streak, registerHydrationComplete } = useStreak(PORTAL_ACCESS.patientId);
   const { unlockedIds, unlock } = useAchievements(PORTAL_ACCESS.patientId);
@@ -548,37 +566,63 @@ function PortalAgenda() {
 
 function PortalQuestionnaires() {
   const toast = useToast();
-  const [questionnaires, setQuestionnaires] = usePersistentState(LOCAL_KEYS.portalQuestionnaires, PORTAL_QUESTIONNAIRES);
+  const { questionarios: todos, setQuestionarios } = useQuestionariosPaciente(PORTAL_ACCESS.patientId);
+  const questionnaires = todos.filter((q) => q.status !== "rascunho");
+  const [respostasDraft, setRespostasDraft] = useState<Record<string, Record<string, string>>>({});
+
+  const setResposta = (qId: string, pId: string, valor: string) => setRespostasDraft((prev) => ({ ...prev, [qId]: { ...(prev[qId] ?? {}), [pId]: valor } }));
+
+  const enviarRespostas = (q: PortalQuestionnaire) => {
+    const respostas = respostasDraft[q.id] ?? {};
+    setQuestionarios(todos.map((item) => item.id === q.id ? { ...item, status: "respondido", respostas } : item));
+    toast("Questionario enviado");
+    pushEvent({
+      tipo: "questionario",
+      titulo: `${CURRENT_PATIENT.nome.split(" ")[0]} respondeu "${q.titulo}"`,
+      audiencia: "clinica",
+      patientId: PORTAL_ACCESS.patientId,
+      clinicLink: "/patients/" + PORTAL_ACCESS.patientId,
+    });
+  };
+
   return (
     <div className="portal-page">
       <PageHead title="Questionarios" sub="Responda os formularios enviados pela clinica." />
+      {questionnaires.length === 0 && <article className="card pad" style={{ textAlign: "center", padding: "32px 20px" }}><p style={{ margin: 0 }}>Nenhum questionario por aqui ainda.</p></article>}
       {questionnaires.map((q) => {
         const done = q.status === "respondido";
+        const draft = respostasDraft[q.id] ?? {};
         return (
           <article className="card pad portal-question" key={q.id}>
             <div className="portal-row between">
               <div><span className="eyebrow">{q.categoria}</span><h2>{q.titulo}</h2><p>Prazo: {q.prazo}</p></div>
               <span className={cx("chip", done ? "sage" : "amber")}>{done ? "Respondido" : "Pendente"}</span>
             </div>
-            {!done && q.perguntas.map((p) => (
-              <label className="field" key={p.id}>
-                <span>{p.texto}</span>
-                {p.tipo === "texto" && <textarea className="input" rows={3} />}
-                {p.tipo === "escala" && <input className="input" type="range" min="1" max="5" />}
-                {p.tipo === "opcao" && <select className="select">{p.opcoes?.map((op) => <option key={op}>{op}</option>)}</select>}
-              </label>
-            ))}
-            {!done && <Button variant="primary" onClick={() => {
-              setQuestionnaires(questionnaires.map((item) => item.id === q.id ? { ...item, status: "respondido" } : item));
-              toast("Questionario enviado");
-              pushEvent({
-                tipo: "questionario",
-                titulo: `${CURRENT_PATIENT.nome.split(" ")[0]} respondeu "${q.titulo}"`,
-                audiencia: "clinica",
-                patientId: PORTAL_ACCESS.patientId,
-                clinicLink: "/questionarios",
-              });
-            }}>Enviar respostas</Button>}
+            {done ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {q.perguntas.map((p) => (
+                  <div key={p.id}>
+                    <div className="muted" style={{ fontSize: 12.5 }}>{p.texto}</div>
+                    <div style={{ fontWeight: 600, marginTop: 2 }}>{q.respostas?.[p.id] || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {q.perguntas.map((p) => (
+                  <label className="field" key={p.id}>
+                    <span>{p.texto}</span>
+                    {p.tipo === "texto" && <textarea className="input" rows={3} value={draft[p.id] ?? ""} onChange={(e) => setResposta(q.id, p.id, e.target.value)} />}
+                    {p.tipo === "escala" && <input className="input" type="range" min="1" max="5" value={draft[p.id] ?? "3"} onChange={(e) => setResposta(q.id, p.id, e.target.value)} />}
+                    {p.tipo === "opcao" && <select className="select" value={draft[p.id] ?? ""} onChange={(e) => setResposta(q.id, p.id, e.target.value)}>
+                      <option value="" disabled>Selecione…</option>
+                      {p.opcoes?.map((op) => <option key={op}>{op}</option>)}
+                    </select>}
+                  </label>
+                ))}
+                <Button variant="primary" onClick={() => enviarRespostas(q)}>Enviar respostas</Button>
+              </>
+            )}
           </article>
         );
       })}

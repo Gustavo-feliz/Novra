@@ -2,9 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, Cell } from "recharts";
 import { UserPlus, CalendarPlus, FileText, Cake, CheckCircle2, Circle, ArrowRight, Radio } from "lucide-react";
-import { Card, Button, Avatar, Chip, Stat, Delta } from "../components/ui";
+import { Card, Button, Avatar, Chip, Stat } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { DASH, BIRTHDAYS, TASKS, AGENDA, PATIENTS, CLINIC } from "../lib/mock";
+import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { EVENT_META, useEvents } from "../lib/events";
 import { initials, timeAgo } from "../lib/utils";
 import { useState } from "react";
@@ -13,9 +14,12 @@ export default function Dashboard() {
   const nav = useNavigate();
   const toast = useToast();
   const [tasks, setTasks] = useState(TASKS);
+  const [patients] = usePersistentState(LOCAL_KEYS.patients, PATIENTS);
+  const [appointments] = usePersistentState(LOCAL_KEYS.appointments, AGENDA);
   const { events } = useEvents("clinica");
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-  const proximos = AGENDA.slice(0, 4);
+  const proximos = appointments.slice(0, 4);
+  const ativos = patients.filter((p) => p.status === "ativo").length;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
@@ -32,10 +36,10 @@ export default function Dashboard() {
       </div>
 
       <div className="grow grow-resp" style={{ marginBottom: 18 }}>
-        <Stat label="Pacientes ativos" value="47" sub={<Delta v={6} />} />
-        <Stat label="Consultas na semana" value="18" sub={<Delta v={12} />} />
-        <Stat label="Taxa de retorno" value="82%" sub={<Delta v={4} />} />
-        <Stat label="Planos vencendo" value="5" sub={<Chip tone="amber">próx. 7 dias</Chip>} />
+        <Stat label="Pacientes ativos" value={String(ativos)} sub={<span className="faint" style={{ fontSize: 11.5 }}>de {patients.length} cadastrado{patients.length === 1 ? "" : "s"}</span>} />
+        <Stat label="Consultas na semana" value={String(appointments.length)} sub={<span className="faint" style={{ fontSize: 11.5 }}>agendadas</span>} />
+        <Stat label="Taxa de retorno" value="—" sub={<span className="faint" style={{ fontSize: 11.5 }}>sem histórico ainda</span>} />
+        <Stat label="Planos vencendo" value="0" sub={<span className="faint" style={{ fontSize: 11.5 }}>nenhum por agora</span>} />
       </div>
 
       <div className="gcol gcol-resp" style={{ gridTemplateColumns: "1.4fr 1fr" }}>
@@ -47,7 +51,7 @@ export default function Dashboard() {
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {proximos.map((a, i) => {
-                const p = PATIENTS.find((x) => x.nome === a.paciente);
+                const p = patients.find((x) => x.nome === a.paciente);
                 return (
                   <div key={a.id} onClick={() => p && nav(`/patients/${p.id}`)}
                     style={{ display: "flex", alignItems: "center", gap: 13, padding: "11px 0", borderTop: i ? "1px solid var(--border)" : "none", cursor: "pointer" }}>
@@ -116,15 +120,19 @@ export default function Dashboard() {
 
           <Card pad>
             <span className="eyebrow">Aniversariantes</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-              {BIRTHDAYS.map((b, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--terra-soft)", display: "grid", placeItems: "center" }}><Cake size={16} color="var(--terra)" /></div>
-                  <div style={{ flex: 1 }}><div className="h3" style={{ fontSize: 13 }}>{b.nome}</div><div className="faint" style={{ fontSize: 11.5 }}>{b.quando} · faz {b.idade}</div></div>
-                  <Button variant="subtle" sm onClick={() => toast("Mensagem de parabéns enviada")}>Parabenizar</Button>
-                </div>
-              ))}
-            </div>
+            {BIRTHDAYS.length === 0 ? (
+              <div className="faint" style={{ fontSize: 12.5, marginTop: 10 }}>Nenhum aniversariante nos próximos dias.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                {BIRTHDAYS.map((b, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--terra-soft)", display: "grid", placeItems: "center" }}><Cake size={16} color="var(--terra)" /></div>
+                    <div style={{ flex: 1 }}><div className="h3" style={{ fontSize: 13 }}>{b.nome}</div><div className="faint" style={{ fontSize: 11.5 }}>{b.quando} · faz {b.idade}</div></div>
+                    <Button variant="subtle" sm onClick={() => toast("Mensagem de parabéns enviada")}>Parabenizar</Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           <Card pad>

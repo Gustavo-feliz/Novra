@@ -8,15 +8,16 @@ import {
 import { ThemeToggle } from "./ThemeToggle";
 import { Avatar } from "./ui/Avatar";
 import { NotificationBell } from "./NotificationBell";
+import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { cx, logout } from "../lib/utils";
-import { CLINIC } from "../lib/mock";
+import { CLINIC, DIARIES } from "../lib/mock";
 
 type Item = { to: string; label: string; icon: typeof Search; end?: boolean; badge?: string };
 
 const PRINCIPAL: Item[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/patients", label: "Pacientes", icon: Users },
-  { to: "/diarios", label: "Diários", icon: Camera, badge: "6" },
+  { to: "/diarios", label: "Diários", icon: Camera },
   { to: "/questionarios", label: "Questionários", icon: ListChecks },
   { to: "/financeiro", label: "Financeiro", icon: Wallet },
   { to: "/favoritos", label: "Meus favoritos", icon: Star },
@@ -61,7 +62,11 @@ export function Shell() {
   const nav = useNavigate();
   const loc = useLocation();
   const [more, setMore] = useState(false);
-  const all = [...PRINCIPAL, ...FERRAMENTAS];
+  const [diaries] = usePersistentState(LOCAL_KEYS.diaries, DIARIES);
+  const naoRevisados = diaries.filter((d) => !d.revisado).length;
+  const principal = PRINCIPAL.map((item) => item.to === "/diarios"
+    ? { ...item, badge: naoRevisados > 0 ? String(naoRevisados) : undefined }
+    : item);
 
   return (
     <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -92,7 +97,7 @@ export function Shell() {
               <div className="faint" style={{ fontSize: 11 }}>{CLINIC.crn}</div>
             </div>
           </div>
-          <NavGroup label="Principal" items={PRINCIPAL} />
+          <NavGroup label="Principal" items={principal} />
           <NavGroup label="Ferramentas" items={FERRAMENTAS} />
         </aside>
 
@@ -123,7 +128,7 @@ export function Shell() {
             </div>
             <div className="navlbl">Principal</div>
             <nav className="nav">
-              {PRINCIPAL.map((n) => { const I = n.icon; const active = n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to);
+              {principal.map((n) => { const I = n.icon; const active = n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to);
                 return <div key={n.to} className={cx("navitem", active && "active")} onClick={() => { nav(n.to); setMore(false); }}><I size={17} /><span style={{ flex: 1 }}>{n.label}</span>{n.badge && <span className="navbadge">{n.badge}</span>}</div>;
               })}
             </nav>
