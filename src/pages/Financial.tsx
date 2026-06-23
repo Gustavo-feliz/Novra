@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from "recharts";
@@ -8,6 +8,8 @@ import { useToast } from "../components/ui/Toast";
 import { FINANCE_TX, FINANCE_MONTHLY, FINANCE_FORMAS } from "../lib/mock";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { brl, cx } from "../lib/utils";
+import { apiFetch, tryApiFetch } from "../lib/api";
+import type { FinanceTx } from "../lib/types";
 
 type Period = "mes" | "trimestre" | "ano";
 const STATUS_CHIP: Record<string, string> = { Pago: "sage", Pendente: "amber", Atrasado: "red" };
@@ -19,6 +21,23 @@ export default function Financial() {
   const [period, setPeriod] = useState<Period>("mes");
   const [txs, setTxs] = usePersistentState(LOCAL_KEYS.financeTx, FINANCE_TX);
   const m = (v: string) => (mask ? "••••" : v);
+
+  useEffect(() => {
+    tryApiFetch<FinanceTx[]>("/api/finance", txs).then((items) => {
+      if (items.length) setTxs(items);
+    });
+  }, []);
+
+  const marcarPago = async (tx: FinanceTx) => {
+    const updated: FinanceTx = { ...tx, status: "Pago", forma: tx.forma === "—" ? "Pix" : tx.forma };
+    setTxs(txs.map((item) => item.id === tx.id ? updated : item));
+    try {
+      await apiFetch<FinanceTx>(`/api/finance/${tx.id}`, { method: "PATCH", body: JSON.stringify(updated) });
+      toast("Pagamento registrado no backend e recibo liberado");
+    } catch {
+      toast("Pagamento registrado localmente e recibo liberado");
+    }
+  };
 
   const stats = useMemo(() => {
     const recebido = txs.filter((t) => t.status === "Pago").reduce((a, t) => a + t.valor, 0);
@@ -114,8 +133,7 @@ export default function Financial() {
                     e.stopPropagation();
                     if (t.status === "Pago") toast("Recibo emitido");
                     else {
-                      setTxs(txs.map((item) => item.id === t.id ? { ...item, status: "Pago", forma: item.forma === "—" ? "Pix" : item.forma } : item));
-                      toast("Pagamento registrado e recibo liberado");
+                      marcarPago(t);
                     }
                   }}>
                     <Button variant="subtle" sm>{t.status === "Pago" ? <><Receipt size={13} />Emitir</> : "Cobrar"}</Button>

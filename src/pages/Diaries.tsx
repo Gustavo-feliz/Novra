@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, Heart, MessageCircle, Send, Camera, Stethoscope, Check, X } from "lucide-react";
@@ -9,6 +9,7 @@ import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { pushEvent } from "../lib/events";
 import type { DiaryPost } from "../lib/types";
 import { initials, cx } from "../lib/utils";
+import { apiFetch, tryApiFetch } from "../lib/api";
 
 type Filter = "todos" | "novos" | "revisados";
 
@@ -28,7 +29,27 @@ export default function Diaries() {
 
   const naoRevisados = posts.filter((d) => !d.revisado).length;
 
-  const toggleLike = (id: string) => setPosts(posts.map((d) => d.id === id ? { ...d, curtido: !d.curtido, reacoes: d.reacoes + (d.curtido ? -1 : 1), revisado: true } : d));
+  useEffect(() => {
+    tryApiFetch<DiaryPost[]>("/api/diaries", posts).then((items) => {
+      if (items.length) setPosts(items);
+    });
+  }, []);
+
+  const persistDiary = async (post: DiaryPost) => {
+    try {
+      await apiFetch<DiaryPost>(`/api/diaries/${post.id}`, { method: "PATCH", body: JSON.stringify(post) });
+    } catch {
+      // Mantem o fallback local do prototipo.
+    }
+  };
+
+  const toggleLike = (id: string) => {
+    const next = posts.map((d) => d.id === id ? { ...d, curtido: !d.curtido, reacoes: d.reacoes + (d.curtido ? -1 : 1), revisado: true } : d);
+    setPosts(next);
+    const updated = next.find((d) => d.id === id);
+    if (updated) persistDiary(updated);
+  };
+
   const sendComment = (id: string, txt: string) => {
     if (!txt.trim()) return;
     const target = posts.find((d) => d.id === id);
@@ -38,7 +59,9 @@ export default function Diaries() {
       ? { ...d, comentarios: d.comentarios + 1, revisado: true, mensagens: [...(d.mensagens ?? []), mensagem] }
       : d);
     setPosts(next);
-    setViewer(next.find((d) => d.id === id) ?? null);
+    const updated = next.find((d) => d.id === id) ?? null;
+    setViewer(updated);
+    if (updated) persistDiary(updated);
     setDraft("");
     toast("Mensagem enviada ao paciente");
     pushEvent({

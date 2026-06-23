@@ -8,6 +8,7 @@ import { PATIENTS, STATUS_META } from "../lib/mock";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import type { Patient, PatientStatus } from "../lib/types";
 import { initials, cx, uid, calcularIdade } from "../lib/utils";
+import { apiFetch, tryApiFetch } from "../lib/api";
 
 type StatusFilter = "todos" | PatientStatus;
 const KANBAN: { key: PatientStatus; label: string }[] = [
@@ -56,6 +57,11 @@ export default function Patients() {
   const [addingTag, setAddingTag] = useState(false);
 
   useEffect(() => { if (params.get("novo")) { setNovo(true); setParams({}, { replace: true }); } }, [params, setParams]);
+  useEffect(() => {
+    tryApiFetch<Patient[]>("/api/patients", patients).then((items) => {
+      if (items.length) setPatients(items);
+    });
+  }, []);
 
   const filtered = useMemo(() => patients.filter((p) =>
     (status === "todos" || p.status === status) && p.nome.toLowerCase().includes(q.toLowerCase())
@@ -65,7 +71,7 @@ export default function Patients() {
   const fecharModal = () => { setNovo(false); resetForm(); };
   const podeCriar = !!(form.nome.trim() && form.dataNascimento && form.telefone.trim());
 
-  const criarPaciente = () => {
+  const criarPaciente = async () => {
     if (!podeCriar) return;
     const novoPaciente: Patient = {
       id: uid(),
@@ -85,11 +91,20 @@ export default function Patients() {
       dataNascimento: form.dataNascimento,
       observacao: form.observacao.trim() || undefined,
     };
-    setPatients([novoPaciente, ...patients]);
-    setStatus("todos");
-    toast(`Paciente "${novoPaciente.nome}" criado`);
-    fecharModal();
-    nav(`/patients/${novoPaciente.id}`);
+    try {
+      const saved = await apiFetch<Patient>("/api/patients", { method: "POST", body: JSON.stringify(novoPaciente) });
+      setPatients([saved, ...patients.filter((p) => p.id !== saved.id)]);
+      setStatus("todos");
+      toast(`Paciente "${saved.nome}" criado no backend`);
+      fecharModal();
+      nav(`/patients/${saved.id}`);
+    } catch {
+      setPatients([novoPaciente, ...patients]);
+      setStatus("todos");
+      toast(`Paciente "${novoPaciente.nome}" criado localmente`);
+      fecharModal();
+      nav(`/patients/${novoPaciente.id}`);
+    }
   };
 
   return (

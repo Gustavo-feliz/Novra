@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "api": "node server/index.mjs",
+    "ai:server": "node server/index.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

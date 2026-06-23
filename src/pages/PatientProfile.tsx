@@ -9,8 +9,12 @@ import { pushEvent } from "../lib/events";
 import { NotificationBell } from "../components/NotificationBell";
 import { cx, brl, uid, initials, pct, logout, calcularIdade } from "../lib/utils";
 import type { Patient, Appointment, PatientPlan, PortalQuestionnaire } from "../lib/types";
+<<<<<<< HEAD
 import { analyzePatient, generatePlan, ACTIVITY_LABELS, type ActivityLevel, type Sexo, type Objetivo, type GeneratedPlan } from "../lib/nutrition";
 import { trainWeightForecast, type Forecast } from "../lib/ml";
+=======
+import { apiFetch, tryApiFetch } from "../lib/api";
+>>>>>>> c807cfc (alterações back/login)
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
   Tooltip, CartesianGrid,
@@ -378,9 +382,18 @@ export default function PatientProfile() {
     });
     setEditOpen(true);
   };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const nome = editForm.nome.trim();
     if (!nome) return;
+    const updated = {
+      ...sel, nome, sexo: editForm.sexo,
+      idade: editForm.dataNascimento ? calcularIdade(editForm.dataNascimento) : sel.idade,
+      email: editForm.email.trim() || undefined,
+      telefone: editForm.telefone.trim() || undefined,
+      cpfCnpj: editForm.cpfCnpj.trim() || undefined,
+      dataNascimento: editForm.dataNascimento || sel.dataNascimento,
+      observacao: editForm.observacao.trim() || undefined,
+    };
     setAllPatients(allPatients.map((p) => p.id !== sel.id ? p : {
       ...p, nome, sexo: editForm.sexo,
       idade: editForm.dataNascimento ? calcularIdade(editForm.dataNascimento) : p.idade,
@@ -390,6 +403,7 @@ export default function PatientProfile() {
       dataNascimento: editForm.dataNascimento || p.dataNascimento,
       observacao: editForm.observacao.trim() || undefined,
     }));
+    await apiFetch<Patient>(`/api/patients/${sel.id}`, { method: "PATCH", body: JSON.stringify(updated) }).catch(() => null);
     setEditOpen(false);
     toast("Dados do paciente atualizados");
   };
@@ -464,7 +478,21 @@ export default function PatientProfile() {
   const [enAjuste, setEnAjuste] = useState(15);
   const [planosMap, setPlanosMap] = usePersistentState<Record<string, PatientPlan>>(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
   const plano = planosMap[sel.id];
-  const setPlano = (next: PatientPlan) => setPlanosMap({ ...planosMap, [sel.id]: next });
+  const setPlano = (next: PatientPlan) => {
+    setPlanosMap({ ...planosMap, [sel.id]: next });
+    apiFetch<PatientPlan>(`/api/plans/${sel.id}`, { method: "PUT", body: JSON.stringify(next) }).catch(() => {});
+  };
+  useEffect(() => {
+    if (!id) return;
+    tryApiFetch<Patient | null>(`/api/patients/${id}`, null).then((patient) => {
+      if (!patient) return;
+      setAllPatients((prev) => [patient, ...prev.filter((p) => p.id !== patient.id)]);
+    });
+    tryApiFetch<PatientPlan | null>(`/api/plans/${id}`, null).then((remotePlan) => {
+      if (!remotePlan) return;
+      setPlanosMap((prev) => ({ ...prev, [id]: remotePlan }));
+    });
+  }, [id]);
   const [foods, setFoods] = usePersistentState<Food[]>(LOCAL_KEYS.foods, FOODS_SEED);
 
   /* ---- INTELIGÊNCIA (IA local) ---- */

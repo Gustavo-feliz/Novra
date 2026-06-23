@@ -8,7 +8,9 @@ import { DASH, BIRTHDAYS, TASKS, AGENDA, PATIENTS, CLINIC } from "../lib/mock";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { EVENT_META, useEvents } from "../lib/events";
 import { initials, timeAgo } from "../lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { tryApiFetch } from "../lib/api";
+import type { Appointment, Patient } from "../lib/types";
 
 export default function Dashboard() {
   const nav = useNavigate();
@@ -16,10 +18,16 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState(TASKS);
   const [patients] = usePersistentState(LOCAL_KEYS.patients, PATIENTS);
   const [appointments] = usePersistentState(LOCAL_KEYS.appointments, AGENDA);
+  const [apiPatients, setApiPatients] = useState<Patient[]>(patients);
+  const [apiAppointments, setApiAppointments] = useState<Appointment[]>(appointments);
   const { events } = useEvents("clinica");
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
-  const proximos = appointments.slice(0, 4);
-  const ativos = patients.filter((p) => p.status === "ativo").length;
+  useEffect(() => {
+    tryApiFetch<Patient[]>("/api/patients", patients).then(setApiPatients);
+    tryApiFetch<Appointment[]>("/api/appointments", appointments).then(setApiAppointments);
+  }, []);
+  const proximos = apiAppointments.slice(0, 4);
+  const ativos = apiPatients.filter((p) => p.status === "ativo").length;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
@@ -36,8 +44,8 @@ export default function Dashboard() {
       </div>
 
       <div className="grow grow-resp" style={{ marginBottom: 18 }}>
-        <Stat label="Pacientes ativos" value={String(ativos)} sub={<span className="faint" style={{ fontSize: 11.5 }}>de {patients.length} cadastrado{patients.length === 1 ? "" : "s"}</span>} />
-        <Stat label="Consultas na semana" value={String(appointments.length)} sub={<span className="faint" style={{ fontSize: 11.5 }}>agendadas</span>} />
+        <Stat label="Pacientes ativos" value={String(ativos)} sub={<span className="faint" style={{ fontSize: 11.5 }}>de {apiPatients.length} cadastrado{apiPatients.length === 1 ? "" : "s"}</span>} />
+        <Stat label="Consultas na semana" value={String(apiAppointments.length)} sub={<span className="faint" style={{ fontSize: 11.5 }}>agendadas</span>} />
         <Stat label="Taxa de retorno" value="—" sub={<span className="faint" style={{ fontSize: 11.5 }}>sem histórico ainda</span>} />
         <Stat label="Planos vencendo" value="0" sub={<span className="faint" style={{ fontSize: 11.5 }}>nenhum por agora</span>} />
       </div>
@@ -51,7 +59,7 @@ export default function Dashboard() {
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {proximos.map((a, i) => {
-                const p = patients.find((x) => x.nome === a.paciente);
+                const p = apiPatients.find((x) => x.nome === a.paciente);
                 return (
                   <div key={a.id} onClick={() => p && nav(`/patients/${p.id}`)}
                     style={{ display: "flex", alignItems: "center", gap: 13, padding: "11px 0", borderTop: i ? "1px solid var(--border)" : "none", cursor: "pointer" }}>

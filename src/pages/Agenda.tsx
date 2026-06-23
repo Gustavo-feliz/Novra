@@ -8,7 +8,8 @@ import { AGENDA, WEEKDAYS, HOURS, PATIENTS } from "../lib/mock";
 import { LOCAL_KEYS, type AppointmentRequest, usePersistentState } from "../lib/localData";
 import { pushEvent } from "../lib/events";
 import { initials, cx } from "../lib/utils";
-import type { Appointment } from "../lib/types";
+import type { Appointment, Patient } from "../lib/types";
+import { apiFetch, tryApiFetch } from "../lib/api";
 
 type View = "dia" | "semana" | "mes";
 const MONTH_DAYS = 30; // junho/2026 começa numa segunda-feira
@@ -22,9 +23,27 @@ export default function Agenda() {
   const [nova, setNova] = useState(false);
   const [appointments, setAppointments] = usePersistentState<Appointment[]>(LOCAL_KEYS.appointments, AGENDA);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
+  const [patients, setPatients] = useState<Patient[]>(PATIENTS);
   const [form, setForm] = useState({ paciente: PATIENTS[0].nome, dia: "3", hora: "14:00", modo: "Online" as "Online" | "Presencial", tipo: "Retorno" });
 
   useEffect(() => { if (params.get("nova")) { setNova(true); setParams({}, { replace: true }); } }, [params, setParams]);
+  useEffect(() => {
+    tryApiFetch<Patient[]>("/api/patients", PATIENTS).then((items) => {
+      setPatients(items);
+      if (items[0]) setForm((prev) => ({ ...prev, paciente: prev.paciente || items[0].nome }));
+    });
+    tryApiFetch<Appointment[]>("/api/appointments", appointments).then((items) => {
+      setAppointments(items);
+    });
+  }, []);
+
+  const salvarConsulta = async (appointment: Appointment) => {
+    try {
+      return await apiFetch<Appointment>("/api/appointments", { method: "POST", body: JSON.stringify(appointment) });
+    } catch {
+      return appointment;
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
@@ -64,9 +83,10 @@ export default function Agenda() {
                     patientId: request.patientId, portalLink: "agenda",
                   });
                 }}><X size={13} />Recusar</Button>
-                <Button sm variant="primary" onClick={() => {
+                <Button sm variant="primary" onClick={async () => {
                   const next: Appointment = { id: `portal-${request.id}`, paciente: request.paciente, hora: request.hora, dur: 45, tipo: request.servico, modo: request.modo, dia: 3 };
-                  setAppointments([next, ...appointments]);
+                  const saved = await salvarConsulta(next);
+                  setAppointments([saved, ...appointments.filter((a) => a.id !== saved.id)]);
                   setRequests(requests.map((r) => r.id === request.id ? { ...r, status: "confirmado" } : r));
                   toast("Consulta confirmada e adicionada a agenda");
                   pushEvent({
@@ -107,7 +127,7 @@ export default function Agenda() {
                 <div className="num faint" style={{ fontSize: 11, padding: "6px 8px", textAlign: "right" }}>{h}</div>
                 {WEEKDAYS.map((_, di) => {
                   const appt = appointments.find((a) => a.dia === di && a.hora === h);
-                  const p = appt && PATIENTS.find((x) => x.nome === appt.paciente);
+                  const p = appt && patients.find((x) => x.nome === appt.paciente);
                   return (
                     <div key={di} style={{ borderLeft: "1px solid var(--border)", padding: 4 }}>
                       {appt && (
@@ -132,7 +152,7 @@ export default function Agenda() {
         <div className="card" style={{ overflow: "hidden" }}>
           {HOURS.map((h) => {
             const appt = appointments.find((a) => a.dia === 3 && a.hora === h);
-            const p = appt && PATIENTS.find((x) => x.nome === appt.paciente);
+            const p = appt && patients.find((x) => x.nome === appt.paciente);
             return (
               <div key={h} style={{ display: "flex", gap: 14, padding: "12px 16px", borderTop: "1px solid var(--border)", minHeight: 56 }}>
                 <div className="num faint" style={{ fontSize: 12, minWidth: 44 }}>{h}</div>
@@ -174,14 +194,15 @@ export default function Agenda() {
 
       {nova && (
         <Modal title="Nova consulta" onClose={() => setNova(false)}
-          footer={<><Button variant="ghost" onClick={() => setNova(false)}>Cancelar</Button><Button variant="primary" onClick={() => {
+          footer={<><Button variant="ghost" onClick={() => setNova(false)}>Cancelar</Button><Button variant="primary" onClick={async () => {
             const next: Appointment = { id: `manual-${Date.now()}`, paciente: form.paciente, hora: form.hora, dur: 60, tipo: form.tipo, modo: form.modo, dia: Number(form.dia) };
-            setAppointments([next, ...appointments]);
+            const saved = await salvarConsulta(next);
+            setAppointments([saved, ...appointments.filter((a) => a.id !== saved.id)]);
             setNova(false);
             toast("Consulta agendada");
           }}>Agendar</Button></>}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Paciente"><select className="select" value={form.paciente} onChange={(e) => setForm({ ...form, paciente: e.target.value })}>{PATIENTS.map((p) => <option key={p.id}>{p.nome}</option>)}</select></Field>
+            <Field label="Paciente"><select className="select" value={form.paciente} onChange={(e) => setForm({ ...form, paciente: e.target.value })}>{patients.map((p) => <option key={p.id}>{p.nome}</option>)}</select></Field>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <Field label="Dia da semana"><select className="select" value={form.dia} onChange={(e) => setForm({ ...form, dia: e.target.value })}>{WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></Field>
               <Field label="Hora"><Input className="num" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} placeholder="14:00" /></Field>
