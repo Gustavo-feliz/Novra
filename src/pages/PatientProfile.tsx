@@ -9,6 +9,8 @@ import { pushEvent } from "../lib/events";
 import { NotificationBell } from "../components/NotificationBell";
 import { cx, brl, uid, initials, pct, logout, calcularIdade } from "../lib/utils";
 import type { Patient, Appointment, PatientPlan, PortalQuestionnaire } from "../lib/types";
+import { analyzePatient, generatePlan, ACTIVITY_LABELS, type ActivityLevel, type Sexo, type Objetivo, type GeneratedPlan } from "../lib/nutrition";
+import { trainWeightForecast, type Forecast } from "../lib/ml";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
   Tooltip, CartesianGrid,
@@ -428,6 +430,7 @@ export default function PatientProfile() {
 
   const SECTIONS: { id: string; label: string; icon: any; badge?: string }[] = [
     { id: "perfil", label: "Perfil do paciente", icon: User },
+    { id: "ia", label: "Inteligência (IA)", icon: Sparkles },
     { id: "antrop", label: "Antropometria", icon: Ruler },
     { id: "energetico", label: "Cálculo energético", icon: Flame },
     { id: "plano", label: "Plano alimentar", icon: Utensils },
@@ -463,6 +466,43 @@ export default function PatientProfile() {
   const plano = planosMap[sel.id];
   const setPlano = (next: PatientPlan) => setPlanosMap({ ...planosMap, [sel.id]: next });
   const [foods, setFoods] = usePersistentState<Food[]>(LOCAL_KEYS.foods, FOODS_SEED);
+
+  /* ---- INTELIGÊNCIA (IA local) ---- */
+  const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [treinando, setTreinando] = useState(false);
+  const [planoIA, setPlanoIA] = useState<GeneratedPlan | null>(null);
+  const [nivelIA, setNivelIA] = useState<ActivityLevel>("leve");
+
+  async function treinarPrevisao() {
+    setTreinando(true);
+    try { setForecast(await trainWeightForecast(antRows)); }
+    finally { setTreinando(false); }
+  }
+  // Treina automaticamente ao abrir a seção pela primeira vez.
+  useEffect(() => {
+    if (active === "ia" && !forecast && !treinando) treinarPrevisao();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  function gerarPlanoIA() {
+    setPlanoIA(generatePlan({
+      pacienteId: sel.id, sexo: sel.sexo as Sexo, idade: sel.idade,
+      objetivo: sel.objetivo as Objetivo, antrop: antRows, foods, nivel: nivelIA,
+      refeicoes: REFEICOES_PADRAO, horarios: HORARIOS_PADRAO,
+    }));
+  }
+  function aplicarPlanoIA() {
+    if (!planoIA) return;
+    setPlano({
+      pacienteId: sel.id, titulo: planoIA.titulo, periodo: planoIA.periodo,
+      kcal: planoIA.kcal, aguaMl: planoIA.aguaMl, proteinaG: planoIA.proteinaG,
+      refeicoes: planoIA.refeicoes, substituicoes: planoIA.substituicoes,
+    });
+    toast("Plano da IA aplicado ao paciente");
+    setPlanoIA(null);
+    go("plano");
+  }
+
   const [foodPick, setFoodPick] = useState<number | null>(null);
   const [foodQ, setFoodQ] = useState("");
   const [novoAlimento, setNovoAlimento] = useState(false);
@@ -1629,8 +1669,122 @@ export default function PatientProfile() {
     );
   }
 
+  /* ---- INTELIGÊNCIA (IA local) ---- */
+  function renderIA() {
+    const insights = analyzePatient({
+      sexo: sel.sexo as Sexo, idade: sel.idade, objetivo: sel.objetivo as Objetivo,
+      adesao: sel.adesao, antrop: antRows,
+      openInvoices: FIN.filter((f) => f.status !== "Pago").length,
+    });
+    const nivelCor = (n: string) => n === "alerta" ? "var(--terra)" : n === "ok" ? "var(--sage)" : "var(--blue)";
+    const NivelIcon = ({ n }: { n: string }) => n === "alerta" ? <AlertTriangle size={16} /> : n === "ok" ? <Check size={16} /> : <Lightbulb size={16} />;
+    const sobe = forecast ? forecast.tendenciaKgSemana > 0 : false;
+
+    return (
+      <>
+        <div className="sechead">
+          <div>
+            <div className="h1">Inteligência (IA)</div>
+            <p>Análises, previsão de evolução e geração de plano — tudo calculado no seu navegador.</p>
+          </div>
+          <span className="chip" style={{ background: "var(--sage-soft)", color: "var(--sage-strong)", border: "none" }}><ShieldCheck size={13} />100% local · sem enviar dados</span>
+        </div>
+
+        {/* Insights automáticos */}
+        <div className="card pad" style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><Sparkles size={16} color="var(--sage)" /><span className="h3">Análise automática do paciente</span></div>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+            {insights.map((it) => (
+              <div key={it.id} style={{ display: "flex", gap: 10, padding: 12, borderRadius: 12, background: "var(--surface2)", borderLeft: `3px solid ${nivelCor(it.nivel)}` }}>
+                <span style={{ color: nivelCor(it.nivel), flexShrink: 0, marginTop: 1 }}><NivelIcon n={it.nivel} /></span>
+                <div><div style={{ fontWeight: 600, fontSize: 13 }}>{it.titulo}</div><div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{it.detalhe}</div></div>
+              </div>
+            ))}
+            {insights.length === 0 && <div className="faint" style={{ fontSize: 13 }}>Sem dados suficientes para gerar análises.</div>}
+          </div>
+        </div>
+
+        {/* Previsão de peso (ML) */}
+        <div className="card pad" style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Flame size={16} color="var(--terra)" /><span className="h3">Previsão de evolução de peso</span></div>
+            <button className="btn subtle sm" onClick={treinarPrevisao} disabled={treinando}><RefreshCw size={13} />{treinando ? "Treinando…" : "Treinar de novo"}</button>
+          </div>
+          {treinando && <div className="faint" style={{ fontSize: 13 }}>Treinando modelo no navegador…</div>}
+          {!treinando && forecast && (
+            <>
+              <div className="row gcols" style={{ gap: 12, marginBottom: 12 }}>
+                <div className="card pad" style={{ flex: 1, minWidth: 150, boxShadow: "none", border: "1px solid var(--border)" }}>
+                  <div className="faint" style={{ fontSize: 11.5 }}>Tendência</div>
+                  <div className="num" style={{ fontSize: 22, fontWeight: 600, marginTop: 4, color: sobe ? "var(--terra)" : "var(--sage-strong)", display: "flex", alignItems: "center", gap: 4 }}>
+                    {sobe ? <ArrowUp size={18} /> : <ArrowDown size={18} />}{Math.abs(forecast.tendenciaKgSemana)} kg/sem
+                  </div>
+                </div>
+                <div className="card pad" style={{ flex: 1, minWidth: 150, boxShadow: "none", border: "1px solid var(--border)" }}>
+                  <div className="faint" style={{ fontSize: 11.5 }}>Confiança do ajuste (R²)</div>
+                  <div className="num" style={{ fontSize: 22, fontWeight: 600, marginTop: 4 }}>{Math.round(forecast.r2 * 100)}%</div>
+                </div>
+                <div className="card pad" style={{ flex: 1, minWidth: 150, boxShadow: "none", border: "1px solid var(--border)" }}>
+                  <div className="faint" style={{ fontSize: 11.5 }}>Modelo</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>{forecast.metodo === "tensorflow" ? "Rede neural (TensorFlow.js)" : "Regressão linear"}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {forecast.previsao.map((p) => (
+                  <span key={p.dia} className="chip" style={{ background: "var(--surface2)" }}>{p.data}: <b className="num" style={{ marginLeft: 4 }}>{p.peso} kg</b></span>
+                ))}
+              </div>
+              <div className="faint" style={{ fontSize: 11.5, marginTop: 10 }}>Extrapolação de tendência a partir de {forecast.serie.length} medições. Quanto mais histórico, mais confiável.</div>
+            </>
+          )}
+          {!treinando && !forecast && <div className="faint" style={{ fontSize: 13 }}>Sem medições suficientes para prever.</div>}
+        </div>
+
+        {/* Gerador de plano */}
+        <div className="card pad">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><Utensils size={16} color="var(--blue)" /><span className="h3">Gerar plano alimentar automaticamente</span></div>
+          <div className="row" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="field" style={{ minWidth: 220 }}>
+              <label>Nível de atividade</label>
+              <select className="input" value={nivelIA} onChange={(e) => setNivelIA(e.currentTarget.value as ActivityLevel)}>
+                {(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map((k) => <option key={k} value={k}>{ACTIVITY_LABELS[k]}</option>)}
+              </select>
+            </div>
+            <button className="btn primary" onClick={gerarPlanoIA}><Sparkles size={15} />Gerar plano</button>
+          </div>
+
+          {planoIA && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                <div style={{ fontWeight: 600 }}>{planoIA.titulo}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn ghost sm" onClick={() => setPlanoIA(null)}><X size={14} />Descartar</button>
+                  <button className="btn primary sm" onClick={aplicarPlanoIA}><Check size={14} />Aplicar ao paciente</button>
+                </div>
+              </div>
+              <div className="row gcols" style={{ gap: 10, marginBottom: 12 }}>
+                {[["Meta", planoIA.kcal + " kcal"], ["Proteína", planoIA.proteinaG + " g"], ["Carbo", planoIA.resumo.macros.carboG + " g"], ["Gordura", planoIA.resumo.macros.gorduraG + " g"], ["Água", (planoIA.aguaMl / 1000) + " L"]].map(([l, v]) => (
+                  <div key={l} className="card pad" style={{ flex: 1, minWidth: 110, boxShadow: "none", border: "1px solid var(--border)" }}><div className="faint" style={{ fontSize: 11 }}>{l}</div><div className="num" style={{ fontSize: 18, fontWeight: 600, marginTop: 3 }}>{v}</div></div>
+                ))}
+              </div>
+              <div className="faint" style={{ fontSize: 11.5, marginBottom: 10 }}>TMB {planoIA.resumo.tmb} kcal · GET {planoIA.resumo.get} kcal · altura estimada {planoIA.resumo.alturaCm ?? "—"} cm</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {planoIA.refeicoes.map((r) => (
+                  <div key={r.nome} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "var(--surface2)", fontSize: 13 }}><b>{r.nome}</b><span className="faint num">{r.horario} · {r.observacao}</span></div>
+                    <div style={{ padding: "8px 12px", fontSize: 12.5 }}>{r.itens.map((it) => it.nome).join(" · ")}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  }
+
   const RENDER: Record<string, () => ReactNode> = {
-    perfil: renderPerfil, antrop: renderAntrop, energetico: renderEnergetico, plano: renderPlano,
+    perfil: renderPerfil, ia: renderIA, antrop: renderAntrop, energetico: renderEnergetico, plano: renderPlano,
     gestacional: renderGestacional, manipulado: renderManipulado, exame: renderExame, anamnese: renderAnamnese,
     questionario: renderQuestionario, diario: renderDiario, instrucao: renderInstrucao, prontuario: renderProntuario,
     financeiro: renderFinanceiro, metas: renderMetas, atestado: renderAtestado, saude: renderSaude, pasta: renderPasta,

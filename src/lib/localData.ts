@@ -21,6 +21,7 @@ export const LOCAL_KEYS = {
   slides: "nutriflow.slides",
   foods: "nutriflow.foods",
   manipulados: "nutriflow.manipulados",
+  reminders: "nutriflow.reminders",
 };
 
 export type AppointmentRequest = {

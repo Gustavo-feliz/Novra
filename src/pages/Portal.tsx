@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   Apple,
+  ArrowRight,
+  Bell,
+  BellRing,
   BookOpen,
   Calendar,
   Camera,
@@ -12,7 +16,9 @@ import {
   FileText,
   Flame,
   GlassWater,
+  HelpCircle,
   Home,
+  KeyRound,
   Lock,
   LogOut,
   Menu,
@@ -22,6 +28,7 @@ import {
   Plus,
   Receipt,
   Salad,
+  ShieldCheck,
   Target,
   Trophy,
   Upload,
@@ -31,6 +38,7 @@ import {
 } from "lucide-react";
 import { Button } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
+import { ThemeToggle } from "../components/ThemeToggle";
 import {
   AGENDA,
   BOOKING,
@@ -49,7 +57,12 @@ import { LOCAL_KEYS, type AppointmentRequest, usePersistentState } from "../lib/
 import { pushEvent } from "../lib/events";
 import { ACHIEVEMENTS, computeUnlocked, useAchievements, useStreak } from "../lib/engagement";
 import { NotificationBell } from "../components/NotificationBell";
-import { brl, cx, initials, logout, uid } from "../lib/utils";
+import { brl, cx, initials, logout, sanitizeText, uid } from "../lib/utils";
+import { getPortalSlug, getRole, unlockPortal } from "../lib/auth";
+import {
+  DEFAULT_REMINDERS, REFEICAO_HORARIOS, notificationPermission, requestNotificationPermission,
+  showLocalNotification, type ReminderPrefs,
+} from "../lib/notifications";
 
 type PortalPost = {
   id: string;
@@ -119,48 +132,135 @@ function MoreLink({ item, onClick }: { item: (typeof MORE_NAV)[number]; onClick?
   );
 }
 
-function PortalLogin({ onUnlock }: { onUnlock: () => void }) {
-  const [code, setCode] = useState(PORTAL_ACCESS.code);
+function PortalLogin({ slug, onUnlock }: { slug?: string; onUnlock: () => void }) {
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [help, setHelp] = useState(false);
+  const [loading, setLoading] = useState(false);
   const toast = useToast();
 
   function submit() {
-    if (code.trim().toUpperCase() !== PORTAL_ACCESS.code) {
+    // O código só vale para um portal existente: além de conferir o código, o
+    // slug da URL precisa ser o do paciente. Assim, adivinhar a URL não basta.
+    const codeOk = code.trim().toUpperCase() === PORTAL_ACCESS.code;
+    const slugOk = slug === PORTAL_ACCESS.slug;
+    if (!codeOk || !slugOk) {
       setError("Codigo nao encontrado. Confira o link ou fale com a clinica.");
       return;
     }
-    onUnlock();
-    toast("Portal liberado");
+    setLoading(true);
+    unlockPortal(PORTAL_ACCESS.slug);
+    setTimeout(() => {
+      onUnlock();
+      toast("Portal liberado");
+    }, 220);
   }
 
   return (
     <main className="portal-login">
-      <section className="portal-login-card">
-        <div className="brand-mark portal-logo"><Salad size={22} /></div>
+      <div className="portal-login-glow" aria-hidden="true" />
+      <div className="portal-login-top">
+        <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div>NutriFlow</div>
+        <ThemeToggle />
+      </div>
+
+      <motion.section
+        className="portal-login-card"
+        initial={{ opacity: 0, y: 18, scale: .98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: .42 }}
+      >
+        <div className="brand-mark portal-logo"><Salad size={24} /></div>
         <div>
           <div className="eyebrow">Portal do paciente</div>
           <h1>Entre no seu acompanhamento</h1>
           <p>{CLINIC.nome}</p>
         </div>
-        <label className="field">
+
+        <label className="field portal-login-field">
           <span>Codigo de acesso</span>
-          <input className="input num" value={code} onChange={(e) => { setCode(e.target.value); setError(""); }} />
+          <input
+            className="input code"
+            value={code}
+            onChange={(e) => { setCode(e.target.value.toUpperCase()); setError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            placeholder="EX: MARIANA2026"
+            autoFocus
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            inputMode="text"
+          />
         </label>
+
         {error && <div className="banner alert">{error}</div>}
-        <Button variant="primary" onClick={submit}>Acessar portal</Button>
-      </section>
+
+        <Button variant="primary" onClick={submit} disabled={loading} className="portal-login-submit">
+          {loading ? "Entrando..." : "Acessar portal"} <ArrowRight size={16} />
+        </Button>
+
+        <div className="portal-login-trust"><ShieldCheck size={14} />Acesso protegido, exclusivo para sua nutricionista</div>
+
+        <button type="button" className="site-login-demo" onClick={() => { setCode(PORTAL_ACCESS.code); setError(""); }}>
+          <Check size={14} />
+          <span>Codigo demo: <strong>{PORTAL_ACCESS.code}</strong></span>
+        </button>
+
+        <button type="button" className="portal-login-help-toggle" onClick={() => setHelp(!help)}>
+          <HelpCircle size={14} />Nao encontra o seu codigo?
+        </button>
+        {help && (
+          <div className="portal-login-help-card">
+            <p><KeyRound size={14} />O codigo foi enviado pela sua nutricionista por WhatsApp ou e-mail, junto com o link do portal.</p>
+            <p>Ainda com duvidas? Fale diretamente com <strong>{CLINIC.nutri}</strong>.</p>
+          </div>
+        )}
+      </motion.section>
     </main>
   );
+}
+
+/** Agendador de lembretes locais: roda enquanto o portal está aberto e dispara
+ *  notificações de hidratação (por intervalo) e de refeição (em horários fixos). */
+function useReminders() {
+  const [prefs] = usePersistentState<ReminderPrefs>(LOCAL_KEYS.reminders, DEFAULT_REMINDERS);
+  const lastWater = useRef(Date.now());
+
+  useEffect(() => {
+    if (!prefs.enabled || notificationPermission() !== "granted") return;
+    const slug = PORTAL_ACCESS.slug;
+    const tick = () => {
+      if (prefs.aguaIntervalMin > 0 && Date.now() - lastWater.current >= prefs.aguaIntervalMin * 60000) {
+        lastWater.current = Date.now();
+        showLocalNotification("Hora de se hidratar 💧", { body: "Beba um copo de água e registre na sua meta.", url: `/portal/${slug}/metas`, tag: "agua" });
+      }
+      if (prefs.refeicoes) {
+        const now = new Date();
+        const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+        if (REFEICAO_HORARIOS.includes(hhmm)) {
+          showLocalNotification("Hora da refeição 🍽️", { body: "Que tal registrar no diário alimentar?", url: `/portal/${slug}/diario`, tag: `refeicao-${hhmm}` });
+        }
+      }
+    };
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [prefs.enabled, prefs.aguaIntervalMin, prefs.refeicoes]);
 }
 
 export default function Portal() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const [unlocked, setUnlocked] = useState(slug === PORTAL_ACCESS.slug);
+  useReminders();
+  // Libera o portal quando: (a) o paciente entrou por e-mail/senha (sessão de
+  // login) OU (b) já validou o código de acesso antes (sessão de portal). Saber
+  // apenas o slug da URL NÃO é mais suficiente.
+  const [unlocked, setUnlocked] = useState(
+    (getRole() === "patient" && slug === PORTAL_ACCESS.slug) || getPortalSlug() === slug,
+  );
   const [sheet, setSheet] = useState(false);
   const patient = PATIENTS.find((p) => p.id === PORTAL_ACCESS.patientId) ?? PATIENTS[0];
 
-  if (!unlocked) return <PortalLogin onUnlock={() => setUnlocked(true)} />;
+  if (!unlocked) return <PortalLogin slug={slug} onUnlock={() => setUnlocked(true)} />;
 
   return (
     <div className="portal-shell">
@@ -357,7 +457,8 @@ function PortalDiary() {
   const [desc, setDesc] = useState("");
 
   function addPost() {
-    const post: PortalPost = { id: uid(), refeicao: meal, quando: "Agora", desc: desc || "Foto enviada para avaliacao.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0 };
+    const clean = sanitizeText(desc, 500).trim();
+    const post: PortalPost = { id: uid(), refeicao: meal, quando: "Agora", desc: clean || "Foto enviada para avaliacao.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0 };
     setPosts([post, ...posts]);
     setDesc("");
     toast("Registro enviado para a nutricionista");
@@ -382,7 +483,7 @@ function PortalDiary() {
           </select>
           <Button variant="primary" onClick={addPost}><Camera size={15} />Enviar</Button>
         </div>
-        <textarea className="input" rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Comentario opcional" />
+        <textarea className="input" rows={3} maxLength={500} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Comentario opcional" />
       </section>
       <div className="portal-diary-grid">
         {posts.map((post) => (
@@ -393,6 +494,61 @@ function PortalDiary() {
         ))}
       </div>
     </div>
+  );
+}
+
+function ReminderCard() {
+  const toast = useToast();
+  const [prefs, setPrefs] = usePersistentState<ReminderPrefs>(LOCAL_KEYS.reminders, DEFAULT_REMINDERS);
+  const [perm, setPerm] = useState(notificationPermission());
+
+  if (perm === "unsupported") return null;
+  const ativo = prefs.enabled && perm === "granted";
+
+  async function ativar() {
+    let granted = perm === "granted";
+    if (!granted) {
+      const p = await requestNotificationPermission();
+      setPerm(p);
+      granted = p === "granted";
+      if (!granted) { toast(p === "denied" ? "Notificações bloqueadas no navegador" : "Permissão não concedida"); return; }
+    }
+    setPrefs({ ...prefs, enabled: true });
+    toast("Lembretes ativados");
+    showLocalNotification("Lembretes ativados 🔔", { body: "Você vai receber avisos de água e refeições.", url: `/portal/${PORTAL_ACCESS.slug}/metas` });
+  }
+
+  return (
+    <section className="card pad portal-reminders">
+      <div className="portal-row between" style={{ alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 11, alignItems: "center" }}>
+          <span className="portal-reminder-ic">{ativo ? <BellRing size={18} /> : <Bell size={18} />}</span>
+          <div><strong>Lembretes no celular</strong><p>Avisos de hidratação e refeições, mesmo com o app em segundo plano.</p></div>
+        </div>
+        <button className={cx("toggle", ativo && "on")} onClick={() => (ativo ? (setPrefs({ ...prefs, enabled: false }), toast("Lembretes desativados")) : ativar())} aria-label="Ativar lembretes"><span /></button>
+      </div>
+
+      {ativo && (
+        <div className="portal-reminder-opts">
+          <label className="field">
+            <span>Lembrete de hidratação</span>
+            <select className="select" value={prefs.aguaIntervalMin} onChange={(e) => setPrefs({ ...prefs, aguaIntervalMin: Number(e.target.value) })}>
+              <option value={60}>A cada 1 hora</option>
+              <option value={120}>A cada 2 horas</option>
+              <option value={180}>A cada 3 horas</option>
+              <option value={0}>Desligado</option>
+            </select>
+          </label>
+          <label className="portal-reminder-check">
+            <input type="checkbox" checked={prefs.refeicoes} onChange={(e) => setPrefs({ ...prefs, refeicoes: e.target.checked })} />
+            <span>Lembrar nos horários de refeição ({REFEICAO_HORARIOS.join(", ")})</span>
+          </label>
+          <button className="btn ghost sm" onClick={() => showLocalNotification("Notificação de teste 🔔", { body: "É assim que os lembretes vão aparecer.", url: `/portal/${PORTAL_ACCESS.slug}/metas` })}>Testar notificação</button>
+        </div>
+      )}
+
+      {perm === "denied" && <div className="banner alert" style={{ marginTop: 12 }}>Notificações bloqueadas. Libere nas configurações do navegador para ativar os lembretes.</div>}
+    </section>
   );
 }
 
@@ -436,6 +592,8 @@ function PortalGoals() {
           <div><strong>{streak.dias} dia{streak.dias > 1 ? "s" : ""} seguido{streak.dias > 1 ? "s" : ""}</strong><span>batendo a meta de hidratação 🔥</span></div>
         </article>
       )}
+
+      <ReminderCard />
 
       <div className="portal-list">
         {goals.map((goal) => {
@@ -573,7 +731,8 @@ function PortalQuestionnaires() {
   const setResposta = (qId: string, pId: string, valor: string) => setRespostasDraft((prev) => ({ ...prev, [qId]: { ...(prev[qId] ?? {}), [pId]: valor } }));
 
   const enviarRespostas = (q: PortalQuestionnaire) => {
-    const respostas = respostasDraft[q.id] ?? {};
+    const draft = respostasDraft[q.id] ?? {};
+    const respostas = Object.fromEntries(Object.entries(draft).map(([k, v]) => [k, sanitizeText(v, 1000)]));
     setQuestionarios(todos.map((item) => item.id === q.id ? { ...item, status: "respondido", respostas } : item));
     toast("Questionario enviado");
     pushEvent({

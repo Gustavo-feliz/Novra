@@ -1,6 +1,9 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { useEffect, type ReactElement } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { CommandPalette } from "./components/CommandPalette";
+import { getRole, isAuthenticated, touchSession } from "./lib/auth";
+import { PORTAL_ACCESS } from "./lib/mock";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
@@ -20,6 +23,27 @@ import Consultation from "./pages/Consultation";
 import PatientProfile from "./pages/PatientProfile";
 import Portal from "./pages/Portal";
 
+/** Protege a área da clínica. Sem sessão → vai para o login guardando o destino
+ *  pretendido (deep-link). Sessão de paciente → manda para o portal dele, pois
+ *  não deve enxergar a área da nutricionista. */
+function RequireClinic({ children }: { children: ReactElement }) {
+  const location = useLocation();
+  const authed = isAuthenticated();
+  const role = getRole();
+
+  // Mantém a sessão "viva" enquanto o usuário navega pela área protegida.
+  useEffect(() => { if (authed) touchSession(); }, [location.pathname, authed]);
+
+  if (!authed) {
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
+  }
+  if (role === "patient") {
+    return <Navigate to={`/portal/${PORTAL_ACCESS.slug}`} replace />;
+  }
+  return children;
+}
+
 export default function App() {
   const location = useLocation();
   const isPortal = location.pathname.startsWith("/portal/");
@@ -30,7 +54,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/onboarding" element={<Onboarding />} />
-        <Route element={<Shell />}>
+        <Route element={<RequireClinic><Shell /></RequireClinic>}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/diarios" element={<Diaries />} />
@@ -46,9 +70,9 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
         </Route>
         <Route path="/portal/:slug/*" element={<Portal />} />
-        <Route path="/patients/:id" element={<PatientProfile />} />
-        <Route path="/consultation/:id" element={<Consultation />} />
-        <Route path="*" element={<Dashboard />} />
+        <Route path="/patients/:id" element={<RequireClinic><PatientProfile /></RequireClinic>} />
+        <Route path="/consultation/:id" element={<RequireClinic><Consultation /></RequireClinic>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
