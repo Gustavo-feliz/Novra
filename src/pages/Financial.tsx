@@ -5,10 +5,9 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 import { Eye, EyeOff, Download, TrendingUp, Receipt } from "lucide-react";
 import { Card, Button, Chip, Segmented, IconButton } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { FINANCE_TX, FINANCE_MONTHLY, FINANCE_FORMAS } from "../lib/mock";
-import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
+import { FINANCE_MONTHLY, FINANCE_FORMAS } from "../lib/mock";
 import { brl, cx } from "../lib/utils";
-import { apiFetch, tryApiFetch } from "../lib/api";
+import { listFinance, updateFinance } from "../lib/db";
 import type { FinanceTx } from "../lib/types";
 
 type Period = "mes" | "trimestre" | "ano";
@@ -19,23 +18,18 @@ export default function Financial() {
   const toast = useToast();
   const [mask, setMask] = useState(false);
   const [period, setPeriod] = useState<Period>("mes");
-  const [txs, setTxs] = usePersistentState(LOCAL_KEYS.financeTx, FINANCE_TX);
+  const [txs, setTxs] = useState<FinanceTx[]>([]);
   const m = (v: string) => (mask ? "••••" : v);
 
-  useEffect(() => {
-    tryApiFetch<FinanceTx[]>("/api/finance", txs).then((items) => {
-      if (items.length) setTxs(items);
-    });
-  }, []);
+  useEffect(() => { listFinance().then(setTxs).catch(() => toast("Erro ao carregar financeiro")); }, []);
 
   const marcarPago = async (tx: FinanceTx) => {
-    const updated: FinanceTx = { ...tx, status: "Pago", forma: tx.forma === "—" ? "Pix" : tx.forma };
-    setTxs(txs.map((item) => item.id === tx.id ? updated : item));
     try {
-      await apiFetch<FinanceTx>(`/api/finance/${tx.id}`, { method: "PATCH", body: JSON.stringify(updated) });
-      toast("Pagamento registrado no backend e recibo liberado");
+      const updated = await updateFinance(tx.id, { status: "Pago", forma: tx.forma === "—" ? "Pix" : tx.forma });
+      setTxs(txs.map((item) => item.id === tx.id ? updated : item));
+      toast("Pagamento registrado e recibo liberado");
     } catch {
-      toast("Pagamento registrado localmente e recibo liberado");
+      toast("Erro ao registrar pagamento");
     }
   };
 

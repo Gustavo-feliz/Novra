@@ -1,4 +1,4 @@
-import { clearSession, lockPortal } from "./auth";
+import { logout as authLogout, lockPortal } from "./auth";
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(" ");
 export const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -49,8 +49,8 @@ export function calcularIdade(dataNascimento: string): number {
   return Math.max(0, idade);
 }
 
-export function logout(nav: (path: string) => void) {
-  clearSession();
+export async function logout(nav: (path: string) => void) {
+  await authLogout();
   lockPortal();
   nav("/login");
 }

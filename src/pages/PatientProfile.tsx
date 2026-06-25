@@ -2,19 +2,17 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useTheme } from "../lib/theme";
 import { useToast } from "../components/ui/Toast";
-import { PATIENTS, PORTAL_ACCESS, PLANOS_SEED, REFEICOES_PADRAO, HORARIOS_PADRAO, PORTAL_GOALS, QUESTIONARIOS_SEED, AGENDA, WEEKDAYS } from "../lib/mock";
+import { PORTAL_ACCESS, REFEICOES_PADRAO, HORARIOS_PADRAO, PORTAL_GOALS, QUESTIONARIOS_SEED, WEEKDAYS } from "../lib/mock";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { useStreak } from "../lib/engagement";
 import { pushEvent } from "../lib/events";
 import { NotificationBell } from "../components/NotificationBell";
 import { cx, brl, uid, initials, pct, logout, calcularIdade } from "../lib/utils";
 import type { Patient, Appointment, PatientPlan, PortalQuestionnaire } from "../lib/types";
-<<<<<<< HEAD
 import { analyzePatient, generatePlan, ACTIVITY_LABELS, type ActivityLevel, type Sexo, type Objetivo, type GeneratedPlan } from "../lib/nutrition";
 import { trainWeightForecast, type Forecast } from "../lib/ml";
-=======
-import { apiFetch, tryApiFetch } from "../lib/api";
->>>>>>> c807cfc (alterações back/login)
+import { listPatients, updatePatient, listAppointments, createAppointment, getPlan, savePlan } from "../lib/db";
+import { getUserId } from "../lib/auth";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis,
   Tooltip, CartesianGrid,
@@ -358,11 +356,15 @@ export default function PatientProfile() {
   const toast = useToast();
   const { id } = useParams();
   const nav = useNavigate();
-  const [allPatients, setAllPatients] = usePersistentState(LOCAL_KEYS.patients, PATIENTS);
-  const sel = allPatients.find((p) => p.id === id) ?? allPatients[0];
+  const [allPatients, setAllPatients] = useState<Patient[]>([]);
+  const [patientsReady, setPatientsReady] = useState(false);
+  useEffect(() => { listPatients().then(setAllPatients).catch(() => toast("Erro ao carregar pacientes")).finally(() => setPatientsReady(true)); }, []);
+  const EMPTY_PATIENT: Patient = { id: "", nome: "", idade: 0, sexo: "Feminino", objetivo: "Clínico", status: "ativo", tags: [], ultimaConsulta: "—", proximaAcao: "—", adesao: 0, cor: ["#9DB99F", "#6E8C72"] };
+  const sel = allPatients.find((p) => p.id === id) ?? allPatients[0] ?? EMPTY_PATIENT;
   const PAT = { ...BASE_PAT, nome: sel.nome, iniciais: initials(sel.nome), idade: sel.idade, sexo: sel.sexo, objetivo: sel.objetivo };
   const [active, setActive] = useState("perfil");
   const [gestante, setGestante] = useState<boolean>(!!sel.gestante);
+  useEffect(() => { setGestante(!!sel.gestante); }, [sel.id, sel.gestante]);
   const [mask, setMask] = useState(false);
   const [tags, setTags] = useState(["Gestante", "Acompanhamento", "Online", "Alta prioridade"]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -385,8 +387,8 @@ export default function PatientProfile() {
   const saveEdit = async () => {
     const nome = editForm.nome.trim();
     if (!nome) return;
-    const updated = {
-      ...sel, nome, sexo: editForm.sexo,
+    const patch = {
+      nome, sexo: editForm.sexo,
       idade: editForm.dataNascimento ? calcularIdade(editForm.dataNascimento) : sel.idade,
       email: editForm.email.trim() || undefined,
       telefone: editForm.telefone.trim() || undefined,
@@ -394,30 +396,34 @@ export default function PatientProfile() {
       dataNascimento: editForm.dataNascimento || sel.dataNascimento,
       observacao: editForm.observacao.trim() || undefined,
     };
-    setAllPatients(allPatients.map((p) => p.id !== sel.id ? p : {
-      ...p, nome, sexo: editForm.sexo,
-      idade: editForm.dataNascimento ? calcularIdade(editForm.dataNascimento) : p.idade,
-      email: editForm.email.trim() || undefined,
-      telefone: editForm.telefone.trim() || undefined,
-      cpfCnpj: editForm.cpfCnpj.trim() || undefined,
-      dataNascimento: editForm.dataNascimento || p.dataNascimento,
-      observacao: editForm.observacao.trim() || undefined,
-    }));
-    await apiFetch<Patient>(`/api/patients/${sel.id}`, { method: "PATCH", body: JSON.stringify(updated) }).catch(() => null);
+    try {
+      const saved = await updatePatient(sel.id, patch);
+      setAllPatients(allPatients.map((p) => p.id === sel.id ? saved : p));
+    } catch {
+      toast("Erro ao salvar paciente");
+      return;
+    }
     setEditOpen(false);
     toast("Dados do paciente atualizados");
   };
 
   /* ---- agendamentos (compartilhado com a Agenda) ---- */
-  const [appointments, setAppointments] = usePersistentState<Appointment[]>(LOCAL_KEYS.appointments, AGENDA);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  useEffect(() => { listAppointments().then(setAppointments).catch(() => toast("Erro ao carregar agendamentos")); }, []);
   const apptsDoPaciente = appointments.filter((a) => a.paciente === sel.nome);
   const [novoAgendamento, setNovoAgendamento] = useState(false);
   const [agendaForm, setAgendaForm] = useState({ dia: "3", hora: "14:00", tipo: "Retorno", modo: "Online" as "Online" | "Presencial" });
-  const criarAgendamento = () => {
-    const next: Appointment = { id: uid(), paciente: sel.nome, hora: agendaForm.hora, dur: 60, tipo: agendaForm.tipo, modo: agendaForm.modo, dia: Number(agendaForm.dia) };
-    setAppointments([next, ...appointments]);
-    setNovoAgendamento(false);
-    toast("Agendamento criado");
+  const criarAgendamento = async () => {
+    const userId = getUserId();
+    if (!userId) return;
+    try {
+      const saved = await createAppointment({ patientId: sel.id, paciente: sel.nome, hora: agendaForm.hora, dur: 60, tipo: agendaForm.tipo, modo: agendaForm.modo, dia: Number(agendaForm.dia) }, userId);
+      setAppointments([saved, ...appointments]);
+      setNovoAgendamento(false);
+      toast("Agendamento criado");
+    } catch {
+      toast("Erro ao criar agendamento");
+    }
   };
 
   /* ---- hidratação ---- */
@@ -476,23 +482,17 @@ export default function PatientProfile() {
   const [enFator, setEnFator] = useState(1.55);
   const [enObj, setEnObj] = useState("manutencao");
   const [enAjuste, setEnAjuste] = useState(15);
-  const [planosMap, setPlanosMap] = usePersistentState<Record<string, PatientPlan>>(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
-  const plano = planosMap[sel.id];
-  const setPlano = (next: PatientPlan) => {
-    setPlanosMap({ ...planosMap, [sel.id]: next });
-    apiFetch<PatientPlan>(`/api/plans/${sel.id}`, { method: "PUT", body: JSON.stringify(next) }).catch(() => {});
+  const [plano, setPlanoState] = useState<PatientPlan | null>(null);
+  useEffect(() => { if (id) getPlan(id).then(setPlanoState).catch(() => toast("Erro ao carregar plano")); }, [id]);
+  const setPlano = async (next: PatientPlan) => {
+    const userId = getUserId();
+    if (!userId) return;
+    try {
+      setPlanoState(await savePlan(next, userId));
+    } catch {
+      toast("Erro ao salvar plano");
+    }
   };
-  useEffect(() => {
-    if (!id) return;
-    tryApiFetch<Patient | null>(`/api/patients/${id}`, null).then((patient) => {
-      if (!patient) return;
-      setAllPatients((prev) => [patient, ...prev.filter((p) => p.id !== patient.id)]);
-    });
-    tryApiFetch<PatientPlan | null>(`/api/plans/${id}`, null).then((remotePlan) => {
-      if (!remotePlan) return;
-      setPlanosMap((prev) => ({ ...prev, [id]: remotePlan }));
-    });
-  }, [id]);
   const [foods, setFoods] = usePersistentState<Food[]>(LOCAL_KEYS.foods, FOODS_SEED);
 
   /* ---- INTELIGÊNCIA (IA local) ---- */

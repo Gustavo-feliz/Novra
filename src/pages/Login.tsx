@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
+  Activity,
   AlertTriangle,
   ArrowRight,
-  Activity,
   BarChart3,
   CalendarDays,
   Check,
@@ -15,33 +15,20 @@ import {
   Lock,
   Mail,
   Salad,
-  Search,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
   Stethoscope,
-  UserPlus,
   UserRound,
   Users,
 } from "lucide-react";
 import { Button } from "../components/ui";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { PORTAL_ACCESS } from "../lib/mock";
-import { cx, isValidEmail } from "../lib/utils";
-import {
-  clearFailedAttempts,
-  getLockRemaining,
-  LOCK_MS,
-  recordFailedAttempt,
-  startSession,
-  unlockPortal,
-  wasSessionExpired,
-  type Role,
-} from "../lib/auth";
+import { isValidEmail } from "../lib/utils";
+import { clearFailedAttempts, getLockRemaining, getRole, LOCK_MS, login, recordFailedAttempt, type Role } from "../lib/auth";
 
-import { loginWithApi } from "../lib/api";
-
-const USERS: Record<Role, { email: string; password: string; target: string }> = {
+const DEMO: Record<Role, { email: string; password: string; target: string }> = {
   nutritionist: { email: "nutri123@gmail.com", password: "nutri123", target: "/" },
   patient: { email: "mariana@gmail.com", password: "teste123", target: `/portal/${PORTAL_ACCESS.slug}` },
 };
@@ -55,21 +42,18 @@ export default function Login() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const [role, setRole] = useState<Role>("nutritionist");
-  const [email, setEmail] = useState(USERS.nutritionist.email);
-  const [senha, setSenha] = useState(USERS.nutritionist.password);
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-<<<<<<< HEAD
   const [capsLock, setCapsLock] = useState(false);
   const [lockMs, setLockMs] = useState(getLockRemaining);
-  const [expired] = useState(wasSessionExpired);
-  const timer = useRef<ReturnType<typeof setInterval>>();
 
+  const timer = useRef<ReturnType<typeof setInterval>>();
   const locked = lockMs > 0;
 
-  // Conta regressiva enquanto o login estiver bloqueado por excesso de tentativas.
   useEffect(() => {
     if (!locked) return;
     timer.current = setInterval(() => {
@@ -82,25 +66,21 @@ export default function Login() {
 
   function selectRole(next: Role) {
     setRole(next);
-    setEmail(USERS[next].email);
-    setSenha(USERS[next].password);
     setError("");
   }
 
-  function submit() {
-    if (locked) return;
-=======
-  const fillDemo = () => {
-    setEmail("nutri123@gmail.com");
-    setSenha("nutri123");
+  function fillDemo() {
+    setEmail(DEMO[role].email);
+    setSenha(DEMO[role].password);
     setError("");
-  };
+  }
+
+  function trackCaps(e: KeyboardEvent<HTMLInputElement>) {
+    setCapsLock(e.getModifierState("CapsLock"));
+  }
 
   async function submit() {
-    const cleanEmail = email.trim().toLowerCase();
-    const user = Object.values(USERS).find((u) => u.email === cleanEmail && u.password === senha);
->>>>>>> c807cfc (alterações back/login)
-
+    if (locked || loading) return;
     const cleanEmail = email.trim().toLowerCase();
     if (!isValidEmail(cleanEmail)) {
       setError("Digite um e-mail valido.");
@@ -111,12 +91,16 @@ export default function Login() {
       return;
     }
 
-<<<<<<< HEAD
-    const matchedRole = (Object.keys(USERS) as Role[]).find(
-      (key) => USERS[key].email === cleanEmail && USERS[key].password === senha,
-    );
-
-    if (!matchedRole) {
+    setLoading(true);
+    try {
+      await login(cleanEmail, senha);
+      clearFailedAttempts();
+      const loggedRole = getRole();
+      const target = loggedRole === "patient" ? `/portal/${PORTAL_ACCESS.slug}` : "/";
+      const next = params.get("next");
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      nav(loggedRole === "patient" ? target : (safeNext ?? target), { replace: true });
+    } catch {
       const left = recordFailedAttempt();
       if (left <= 0) {
         setLockMs(getLockRemaining());
@@ -124,51 +108,13 @@ export default function Login() {
       } else {
         setError(`E-mail ou senha incorretos. ${left} tentativa(s) restante(s).`);
       }
-      return;
-    }
-
-    clearFailedAttempts();
-    setLoading(true);
-    startSession(matchedRole, remember);
-    if (matchedRole === "patient") unlockPortal(PORTAL_ACCESS.slug);
-
-    const next = params.get("next");
-    const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
-    const target = safeNext ?? USERS[matchedRole].target;
-    setTimeout(() => nav(target, { replace: true }), 260);
-=======
-    setLoading(true);
-    try {
-      const session = await loginWithApi(cleanEmail, senha);
-      localStorage.setItem("nutriflow_demo_role", session.user.role === "patient" ? "patient" : "nutritionist");
-      nav(user.target);
-    } catch {
-      localStorage.setItem("nutriflow_demo_role", user === USERS.patient ? "patient" : "nutritionist");
-      nav(user.target);
     } finally {
       setLoading(false);
     }
->>>>>>> c807cfc (alterações back/login)
   }
-
-  function trackCaps(e: KeyboardEvent<HTMLInputElement>) {
-    setCapsLock(e.getModifierState("CapsLock"));
-  }
-
-  const lockText = `${Math.floor(lockMs / 60000)}:${String(Math.floor((lockMs % 60000) / 1000)).padStart(2, "0")}`;
 
   return (
     <main className="site-login">
-<<<<<<< HEAD
-      <div className="site-login-bg" aria-hidden="true">
-        <GhostDashboard />
-      </div>
-      <div className="site-login-mobile-hero" aria-hidden="true">
-        <div className="site-login-mobile-glow" />
-      </div>
-
-=======
->>>>>>> c807cfc (alterações back/login)
       <div className="site-login-top">
         <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div><span>NutriFlow</span></div>
         <ThemeToggle />
@@ -180,87 +126,15 @@ export default function Login() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: .42 }}
       >
-<<<<<<< HEAD
-        <div className="brand-mark site-login-logo"><Salad size={28} /></div>
-        <div className="site-login-title">
-          <h1>NutriFlow</h1>
-          <p>Gestao inteligente para consultorios e clinicas</p>
-        </div>
-
-        <div className="seg site-login-roles">
-          {ROLE_TABS.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" className={cx(role === id && "on")} onClick={() => selectRole(id)}>
-              <Icon size={14} />{label}
-            </button>
-          ))}
-        </div>
-
-        <div className="site-login-copy">
-          <h2>{role === "patient" ? "Acesse seu acompanhamento" : "Bem-vinda de volta"}</h2>
-          <p>{role === "patient" ? "Entre com os dados enviados pela sua nutricionista" : "Faca login para acessar sua conta"}</p>
-        </div>
-
-        {expired && (
-          <div className="banner warn site-login-banner"><AlertTriangle size={15} /><span>Sua sessao expirou por inatividade. Entre novamente.</span></div>
-        )}
-
-        <div className="site-login-form">
-          <label className="site-login-field">
-            <span>E-mail</span>
-            <div>
-              <Mail size={17} />
-              <input
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                type="email"
-                placeholder="seu@email.com"
-                autoComplete="email"
-                inputMode="email"
-                disabled={locked}
-              />
-            </div>
-          </label>
-
-          <label className="site-login-field">
-            <span>Senha</span>
-            <div>
-              <Lock size={17} />
-              <input
-                value={senha}
-                onChange={(e) => { setSenha(e.target.value); setError(""); }}
-                onKeyUp={trackCaps}
-                onKeyDown={(e) => { trackCaps(e); if (e.key === "Enter") submit(); }}
-                type={show ? "text" : "password"}
-                placeholder="Sua senha"
-                autoComplete="current-password"
-                disabled={locked}
-              />
-              <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Ocultar senha" : "Mostrar senha"}>
-                {show ? <EyeOff size={17} /> : <Eye size={17} />}
+        <section className="site-login-formpane">
+          <div className="seg site-login-roles">
+            {ROLE_TABS.map(({ id, label, icon: Icon }) => (
+              <button key={id} type="button" className={id === role ? "on" : undefined} onClick={() => selectRole(id)}>
+                <Icon size={14} />{label}
               </button>
-            </div>
-            {capsLock && <small className="site-login-caps"><AlertTriangle size={12} />Caps Lock esta ativado</small>}
-          </label>
-
-          <div className="site-login-options">
-            <label>
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-              <span>Lembrar de mim</span>
-            </label>
-            <button type="button">Esqueci minha senha</button>
+            ))}
           </div>
 
-          {locked ? (
-            <div className="banner alert site-login-banner"><ShieldAlert size={15} /><span>Acesso bloqueado por seguranca. Tente de novo em <strong className="num">{lockText}</strong>.</span></div>
-          ) : error ? (
-            <div className="banner alert">{error}</div>
-          ) : null}
-
-          <Button variant="primary" onClick={submit} className="site-login-submit" disabled={loading || locked}>
-            {locked ? "Bloqueado" : loading ? "Entrando..." : "Entrar"} <span><ArrowRight size={16} /></span>
-          </Button>
-=======
-        <section className="site-login-formpane">
           <div className="site-login-kicker">Painel da nutricionista</div>
           <div className="site-login-copy">
             <h1>Acesse sua clínica</h1>
@@ -278,28 +152,32 @@ export default function Login() {
                   type="email"
                   placeholder="seu@email.com"
                   autoComplete="email"
+                  inputMode="email"
+                  disabled={locked}
                 />
               </div>
             </label>
 
             <label className="site-login-field">
-              <span>Senha <button type="button">Esqueceu a senha?</button></span>
+              <span>Senha</span>
               <div>
                 <Lock size={18} />
                 <input
                   value={senha}
                   onChange={(e) => { setSenha(e.target.value); setError(""); }}
+                  onKeyUp={trackCaps}
+                  onKeyDown={(e) => { trackCaps(e); if (e.key === "Enter") submit(); }}
                   type={show ? "text" : "password"}
                   placeholder="Sua senha"
                   autoComplete="current-password"
-                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  disabled={locked}
                 />
                 <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Ocultar senha" : "Mostrar senha"}>
                   {show ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              {capsLock && <small className="site-login-caps"><AlertTriangle size={12} />Caps Lock esta ativado</small>}
             </label>
->>>>>>> c807cfc (alterações back/login)
 
             <div className="site-login-options">
               <label>
@@ -308,29 +186,29 @@ export default function Login() {
               </label>
             </div>
 
-<<<<<<< HEAD
-          <button type="button" className="site-login-demo" onClick={() => selectRole(role)}>
-            <CheckCircle2 size={14} />
-            <span>Conta demo de {role === "patient" ? "paciente" : "nutricionista"}: <strong>{USERS[role].email}</strong> / <strong>{USERS[role].password}</strong></span>
-          </button>
-        </div>
-=======
-            {error && <div className="banner alert">{error}</div>}
+            {locked ? (
+              <div className="banner alert site-login-banner">
+                <ShieldAlert size={15} />
+                <span>Acesso bloqueado por seguranca. Tente de novo em <strong className="num">{formatLock(lockMs)}</strong>.</span>
+              </div>
+            ) : error ? (
+              <div className="banner alert">{error}</div>
+            ) : null}
 
-            <Button variant="primary" onClick={submit} className="site-login-submit" disabled={loading}>
-              {loading ? "Entrando..." : "Entrar no painel"} <span><ArrowRight size={17} /></span>
+            <Button variant="primary" onClick={submit} className="site-login-submit" disabled={loading || locked}>
+              {locked ? "Bloqueado" : loading ? "Entrando..." : "Entrar no painel"} <span><ArrowRight size={17} /></span>
             </Button>
 
             <button className="site-login-demo" type="button" onClick={fillDemo}>
               <Info size={17} />
               <span>Ambiente de demonstração. Toque para preencher o acesso de exemplo.</span>
-              <b>nutri123@gmail.com</b>
+              <b>{DEMO[role].email}</b>
             </button>
           </div>
 
           <div className="site-login-foot">
             <span>© 2026 NutriFlow</span>
-            <span><ShieldCheck size={13} /> API segura + GPT-4o no backend</span>
+            <span><ShieldCheck size={13} /> Autenticação via Supabase + GPT-4o no backend</span>
           </div>
         </section>
 
@@ -378,8 +256,11 @@ export default function Login() {
             <span><Check size={14} /> Planos</span>
           </div>
         </aside>
->>>>>>> c807cfc (alterações back/login)
       </motion.section>
     </main>
   );
+}
+
+function formatLock(ms: number): string {
+  return `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 }

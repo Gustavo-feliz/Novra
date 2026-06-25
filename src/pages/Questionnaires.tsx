@@ -3,10 +3,11 @@ import { motion } from "framer-motion";
 import { Search, Plus, ListChecks, Send, Copy, Pencil, FileText, X, GripVertical, Trash2 } from "lucide-react";
 import { Card, Button, Chip, Input, Field, Modal } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { QUESTIONNAIRES, Q_CATEGORIES } from "../lib/mock";
+import { Q_CATEGORIES } from "../lib/mock";
 import type { QuestionnaireTemplate } from "../lib/types";
 import { cx, num } from "../lib/utils";
-import { apiFetch, tryApiFetch } from "../lib/api";
+import { listQuestionnaires, createQuestionnaire } from "../lib/db";
+import { getUserId } from "../lib/auth";
 
 const TIPOS = ["Texto curto", "Texto longo", "Múltipla escolha", "Escala 0–10", "Sim / Não", "Número"];
 
@@ -14,7 +15,7 @@ export default function Questionnaires() {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todas");
-  const [list, setList] = useState<QuestionnaireTemplate[]>(QUESTIONNAIRES);
+  const [list, setList] = useState<QuestionnaireTemplate[]>([]);
   const [builder, setBuilder] = useState(false);
   const [name, setName] = useState("");
   const [perguntas, setPerguntas] = useState([{ t: "", tipo: "Texto curto" }]);
@@ -25,31 +26,38 @@ export default function Questionnaires() {
 
   const totalRespostas = list.reduce((a, x) => a + x.respostas, 0);
 
-  useEffect(() => {
-    tryApiFetch<QuestionnaireTemplate[]>("/api/questionnaires", list).then((items) => {
-      if (items.length) setList(items);
-    });
-  }, []);
+  useEffect(() => { listQuestionnaires().then(setList).catch(() => toast("Erro ao carregar questionários")); }, []);
 
   const criarQuestionario = async () => {
-    const item: QuestionnaireTemplate = {
-      id: Math.random().toString(36).slice(2),
-      nome: name,
-      categoria: "Consumo",
-      perguntas: perguntas.filter((p) => p.t.trim()).length || 1,
-      respostas: 0,
-      atualizado: "Hoje",
-      cor: "var(--sage)",
-    };
+    const userId = getUserId();
+    if (!userId) return;
     try {
-      const saved = await apiFetch<QuestionnaireTemplate>("/api/questionnaires", { method: "POST", body: JSON.stringify(item) });
+      const saved = await createQuestionnaire({
+        nome: name,
+        categoria: "Consumo",
+        perguntas: perguntas.filter((p) => p.t.trim()).length || 1,
+        respostas: 0,
+        atualizado: "Hoje",
+        cor: "var(--sage)",
+      }, userId);
       setList([saved, ...list]);
-      toast("Questionário criado no backend");
+      toast("Questionário criado");
     } catch {
-      setList([item, ...list]);
-      toast("Questionário criado localmente");
+      toast("Erro ao criar questionário");
     }
     setBuilder(false);
+  };
+
+  const duplicar = async (t: QuestionnaireTemplate) => {
+    const userId = getUserId();
+    if (!userId) return;
+    try {
+      const saved = await createQuestionnaire({ nome: t.nome + " (cópia)", categoria: t.categoria, perguntas: t.perguntas, respostas: 0, atualizado: "Hoje", cor: t.cor }, userId);
+      setList([saved, ...list]);
+      toast("Questionário duplicado");
+    } catch {
+      toast("Erro ao duplicar questionário");
+    }
   };
 
   return (
@@ -92,7 +100,7 @@ export default function Questionnaires() {
             <div style={{ display: "flex", gap: 8 }}>
               <Button variant="primary" sm style={{ flex: 1 }} onClick={() => toast(`"${t.nome}" enviado ao paciente`)}><Send size={13} />Enviar</Button>
               <Button variant="ghost" sm onClick={() => toast("Abrindo editor")}><Pencil size={13} /></Button>
-              <Button variant="subtle" sm onClick={() => { setList([{ ...t, id: Math.random().toString(36).slice(2), nome: t.nome + " (cópia)", respostas: 0 }, ...list]); toast("Questionário duplicado"); }}><Copy size={13} /></Button>
+              <Button variant="subtle" sm onClick={() => duplicar(t)}><Copy size={13} /></Button>
             </div>
           </Card>
         ))}

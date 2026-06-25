@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Sparkles, Wand2, Plus, RefreshCw, Check, Salad, Send,
@@ -7,12 +7,12 @@ import {
 } from "lucide-react";
 import { Card, Button, Field, Input, Chip, Skeleton, Avatar } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { PATIENTS, REFEICOES_PADRAO, HORARIOS_PADRAO, PLANOS_SEED } from "../lib/mock";
-import { LOCAL_KEYS, readLocal, writeLocal } from "../lib/localData";
+import { REFEICOES_PADRAO, HORARIOS_PADRAO } from "../lib/mock";
 import { initials } from "../lib/utils";
 import { generateMealPlanWithOpenAI, type GeneratedMealPlan } from "../lib/openaiMeals";
-import type { PatientPlan } from "../lib/types";
-import { apiFetch } from "../lib/api";
+import type { Patient, PatientPlan } from "../lib/types";
+import { listPatients, savePlan } from "../lib/db";
+import { getUserId } from "../lib/auth";
 
 type State = "idle" | "loading" | "done" | "error";
 
@@ -54,10 +54,13 @@ const emptyPlan: GeneratedMealPlan = {
 const iconFor = (nome: string) => MEAL_ICONS[nome] ?? Salad;
 const mealSlots = (count: number) => REFEICOES_PADRAO.slice(0, Math.min(Math.max(count || 5, 1), 6));
 
+const EMPTY_PATIENT: Patient = { id: "", nome: "", idade: 0, sexo: "Feminino", objetivo: "Clínico", status: "ativo", tags: [], ultimaConsulta: "—", proximaAcao: "—", adesao: 0, cor: ["#9DB99F", "#6E8C72"] };
+
 export default function Creator() {
   const toast = useToast();
   const [state, setState] = useState<State>("idle");
-  const [paciente, setPaciente] = useState(PATIENTS[0].id);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [paciente, setPaciente] = useState("");
   const [kcal, setKcal] = useState("2350");
   const [refeicoes, setRefeicoes] = useState("5");
   const [restr, setRestr] = useState<string[]>(["Sem lactose", "Rico em ferro", "Baixo enjoo"]);
@@ -66,7 +69,14 @@ export default function Creator() {
   const [plan, setPlan] = useState<GeneratedMealPlan>(emptyPlan);
   const [error, setError] = useState("");
 
-  const pacienteAtual = PATIENTS.find((p) => p.id === paciente) ?? PATIENTS[0];
+  useEffect(() => {
+    listPatients().then((items) => {
+      setPatients(items);
+      if (items[0]) setPaciente((prev) => prev || items[0].id);
+    }).catch(() => toast("Erro ao carregar pacientes"));
+  }, []);
+
+  const pacienteAtual = patients.find((p) => p.id === paciente) ?? patients[0] ?? EMPTY_PATIENT;
   const toggleRestr = (r: string) => setRestr(restr.includes(r) ? restr.filter((x) => x !== r) : [...restr, r]);
 
   const gerar = async () => {
@@ -107,13 +117,13 @@ export default function Creator() {
       substituicoes: plan.substitutions,
     };
 
-    const mapaAtual = readLocal(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
-    writeLocal(LOCAL_KEYS.planosAlimentares, { ...mapaAtual, [paciente]: planToPublish });
+    const userId = getUserId();
+    if (!userId) return;
     try {
-      await apiFetch<PatientPlan>(`/api/plans/${paciente}`, { method: "PUT", body: JSON.stringify(planToPublish) });
-      toast(`Cardapio publicado no backend e no plano de ${pacienteAtual.nome.split(" ")[0]}`);
+      await savePlan(planToPublish, userId);
+      toast(`Cardapio publicado no plano de ${pacienteAtual.nome.split(" ")[0]}`);
     } catch {
-      toast(`Cardapio publicado localmente no plano de ${pacienteAtual.nome.split(" ")[0]}`);
+      toast("Erro ao publicar cardapio");
     }
   };
 
@@ -140,7 +150,7 @@ export default function Creator() {
               <div style={{ position: "relative" }}>
                 <div style={{ position: "absolute", left: 7, top: 7, zIndex: 1 }}><Avatar initials={initials(pacienteAtual.nome)} size={22} gradient={pacienteAtual.cor} /></div>
                 <select className="select" style={{ paddingLeft: 40 }} value={paciente} onChange={(e) => setPaciente(e.target.value)}>
-                  {PATIENTS.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  {patients.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
               </div>
             </Field>

@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Salad, ArrowRight, ArrowLeft, Check, Upload, Building2, Palette, UserPlus } from "lucide-react";
 import { Field, Input, Button } from "../components/ui";
 import { cx } from "../lib/utils";
-import { startSession } from "../lib/auth";
 
 const SWATCHES = ["78 110 87", "188 98 66", "62 124 140", "120 86 140", "183 137 47"];
 const STEPS = [
@@ -96,7 +95,7 @@ export default function Onboarding() {
           {step < 2 ? (
             <Button variant="primary" onClick={() => setStep(step + 1)}>Continuar <ArrowRight size={15} /></Button>
           ) : (
-            <Button variant="primary" onClick={() => { startSession("nutritionist", true); nav("/"); }}>Concluir e abrir painel <Check size={15} /></Button>
+            <Button variant="primary" onClick={() => nav("/login")}>Concluir e fazer login <Check size={15} /></Button>
           )}
         </div>
       </motion.div>

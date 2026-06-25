@@ -4,11 +4,11 @@ import { motion } from "framer-motion";
 import { Search, UserPlus, LayoutGrid, Columns3, ChevronRight, Camera, Plus, X } from "lucide-react";
 import { Card, Button, Avatar, Chip, Input, Field, Textarea, Segmented, Modal } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { PATIENTS, STATUS_META } from "../lib/mock";
-import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
+import { STATUS_META } from "../lib/mock";
 import type { Patient, PatientStatus } from "../lib/types";
-import { initials, cx, uid, calcularIdade } from "../lib/utils";
-import { apiFetch, tryApiFetch } from "../lib/api";
+import { initials, cx, calcularIdade } from "../lib/utils";
+import { createPatient, listPatients } from "../lib/db";
+import { getUserId } from "../lib/auth";
 
 type StatusFilter = "todos" | PatientStatus;
 const KANBAN: { key: PatientStatus; label: string }[] = [
@@ -46,7 +46,7 @@ export default function Patients() {
   const nav = useNavigate();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
-  const [patients, setPatients] = usePersistentState<Patient[]>(LOCAL_KEYS.patients, PATIENTS);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("todos");
   const [view, setView] = useState<"grid" | "kanban">("grid");
@@ -57,11 +57,7 @@ export default function Patients() {
   const [addingTag, setAddingTag] = useState(false);
 
   useEffect(() => { if (params.get("novo")) { setNovo(true); setParams({}, { replace: true }); } }, [params, setParams]);
-  useEffect(() => {
-    tryApiFetch<Patient[]>("/api/patients", patients).then((items) => {
-      if (items.length) setPatients(items);
-    });
-  }, []);
+  useEffect(() => { listPatients().then(setPatients).catch(() => toast("Erro ao carregar pacientes")); }, []);
 
   const filtered = useMemo(() => patients.filter((p) =>
     (status === "todos" || p.status === status) && p.nome.toLowerCase().includes(q.toLowerCase())
@@ -73,8 +69,9 @@ export default function Patients() {
 
   const criarPaciente = async () => {
     if (!podeCriar) return;
-    const novoPaciente: Patient = {
-      id: uid(),
+    const userId = getUserId();
+    if (!userId) return;
+    const novoPaciente: Omit<Patient, "id"> = {
       nome: form.nome.trim(),
       idade: calcularIdade(form.dataNascimento),
       sexo: form.sexo,
@@ -92,18 +89,14 @@ export default function Patients() {
       observacao: form.observacao.trim() || undefined,
     };
     try {
-      const saved = await apiFetch<Patient>("/api/patients", { method: "POST", body: JSON.stringify(novoPaciente) });
-      setPatients([saved, ...patients.filter((p) => p.id !== saved.id)]);
+      const saved = await createPatient(novoPaciente, userId);
+      setPatients([saved, ...patients]);
       setStatus("todos");
-      toast(`Paciente "${saved.nome}" criado no backend`);
+      toast(`Paciente "${saved.nome}" criado`);
       fecharModal();
       nav(`/patients/${saved.id}`);
     } catch {
-      setPatients([novoPaciente, ...patients]);
-      setStatus("todos");
-      toast(`Paciente "${novoPaciente.nome}" criado localmente`);
-      fecharModal();
-      nav(`/patients/${novoPaciente.id}`);
+      toast("Erro ao criar paciente");
     }
   };
 

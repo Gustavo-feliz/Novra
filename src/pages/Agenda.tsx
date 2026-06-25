@@ -4,12 +4,13 @@ import { motion } from "framer-motion";
 import { CalendarPlus, Link2, ChevronLeft, ChevronRight, Check, X } from "lucide-react";
 import { Button, Segmented, Modal, Field, Input } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { AGENDA, WEEKDAYS, HOURS, PATIENTS } from "../lib/mock";
+import { WEEKDAYS, HOURS } from "../lib/mock";
 import { LOCAL_KEYS, type AppointmentRequest, usePersistentState } from "../lib/localData";
 import { pushEvent } from "../lib/events";
 import { initials, cx } from "../lib/utils";
 import type { Appointment, Patient } from "../lib/types";
-import { apiFetch, tryApiFetch } from "../lib/api";
+import { listAppointments, createAppointment, listPatients } from "../lib/db";
+import { getUserId } from "../lib/auth";
 
 type View = "dia" | "semana" | "mes";
 const MONTH_DAYS = 30; // junho/2026 começa numa segunda-feira
@@ -21,28 +22,24 @@ export default function Agenda() {
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<View>("semana");
   const [nova, setNova] = useState(false);
-  const [appointments, setAppointments] = usePersistentState<Appointment[]>(LOCAL_KEYS.appointments, AGENDA);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
-  const [patients, setPatients] = useState<Patient[]>(PATIENTS);
-  const [form, setForm] = useState({ paciente: PATIENTS[0].nome, dia: "3", hora: "14:00", modo: "Online" as "Online" | "Presencial", tipo: "Retorno" });
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [form, setForm] = useState({ paciente: "", dia: "3", hora: "14:00", modo: "Online" as "Online" | "Presencial", tipo: "Retorno" });
 
   useEffect(() => { if (params.get("nova")) { setNova(true); setParams({}, { replace: true }); } }, [params, setParams]);
   useEffect(() => {
-    tryApiFetch<Patient[]>("/api/patients", PATIENTS).then((items) => {
+    listPatients().then((items) => {
       setPatients(items);
       if (items[0]) setForm((prev) => ({ ...prev, paciente: prev.paciente || items[0].nome }));
-    });
-    tryApiFetch<Appointment[]>("/api/appointments", appointments).then((items) => {
-      setAppointments(items);
-    });
+    }).catch(() => toast("Erro ao carregar pacientes"));
+    listAppointments().then(setAppointments).catch(() => toast("Erro ao carregar agendamentos"));
   }, []);
 
-  const salvarConsulta = async (appointment: Appointment) => {
-    try {
-      return await apiFetch<Appointment>("/api/appointments", { method: "POST", body: JSON.stringify(appointment) });
-    } catch {
-      return appointment;
-    }
+  const salvarConsulta = async (appointment: Omit<Appointment, "id"> & { patientId?: string }) => {
+    const userId = getUserId();
+    if (!userId) throw new Error("not authenticated");
+    return createAppointment(appointment, userId);
   };
 
   return (
@@ -84,9 +81,13 @@ export default function Agenda() {
                   });
                 }}><X size={13} />Recusar</Button>
                 <Button sm variant="primary" onClick={async () => {
-                  const next: Appointment = { id: `portal-${request.id}`, paciente: request.paciente, hora: request.hora, dur: 45, tipo: request.servico, modo: request.modo, dia: 3 };
-                  const saved = await salvarConsulta(next);
-                  setAppointments([saved, ...appointments.filter((a) => a.id !== saved.id)]);
+                  try {
+                    const saved = await salvarConsulta({ patientId: request.patientId, paciente: request.paciente, hora: request.hora, dur: 45, tipo: request.servico, modo: request.modo, dia: 3 });
+                    setAppointments([saved, ...appointments]);
+                  } catch {
+                    toast("Erro ao confirmar consulta");
+                    return;
+                  }
                   setRequests(requests.map((r) => r.id === request.id ? { ...r, status: "confirmado" } : r));
                   toast("Consulta confirmada e adicionada a agenda");
                   pushEvent({
@@ -195,11 +196,15 @@ export default function Agenda() {
       {nova && (
         <Modal title="Nova consulta" onClose={() => setNova(false)}
           footer={<><Button variant="ghost" onClick={() => setNova(false)}>Cancelar</Button><Button variant="primary" onClick={async () => {
-            const next: Appointment = { id: `manual-${Date.now()}`, paciente: form.paciente, hora: form.hora, dur: 60, tipo: form.tipo, modo: form.modo, dia: Number(form.dia) };
-            const saved = await salvarConsulta(next);
-            setAppointments([saved, ...appointments.filter((a) => a.id !== saved.id)]);
-            setNova(false);
-            toast("Consulta agendada");
+            const patientId = patients.find((p) => p.nome === form.paciente)?.id;
+            try {
+              const saved = await salvarConsulta({ patientId, paciente: form.paciente, hora: form.hora, dur: 60, tipo: form.tipo, modo: form.modo, dia: Number(form.dia) });
+              setAppointments([saved, ...appointments]);
+              setNova(false);
+              toast("Consulta agendada");
+            } catch {
+              toast("Erro ao agendar consulta");
+            }
           }}>Agendar</Button></>}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Field label="Paciente"><select className="select" value={form.paciente} onChange={(e) => setForm({ ...form, paciente: e.target.value })}>{patients.map((p) => <option key={p.id}>{p.nome}</option>)}</select></Field>

@@ -4,12 +4,10 @@ import { motion } from "framer-motion";
 import { Search, Heart, MessageCircle, Send, Camera, Stethoscope, Check, X } from "lucide-react";
 import { Card, Avatar, Chip, Segmented, Input, Button } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { DIARIES } from "../lib/mock";
-import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { pushEvent } from "../lib/events";
 import type { DiaryPost } from "../lib/types";
 import { initials, cx } from "../lib/utils";
-import { apiFetch, tryApiFetch } from "../lib/api";
+import { listDiaries, updateDiary } from "../lib/db";
 
 type Filter = "todos" | "novos" | "revisados";
 
@@ -18,7 +16,7 @@ export default function Diaries() {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("todos");
-  const [posts, setPosts] = usePersistentState<DiaryPost[]>(LOCAL_KEYS.diaries, DIARIES);
+  const [posts, setPosts] = useState<DiaryPost[]>([]);
   const [viewer, setViewer] = useState<DiaryPost | null>(null);
   const [draft, setDraft] = useState("");
 
@@ -29,39 +27,33 @@ export default function Diaries() {
 
   const naoRevisados = posts.filter((d) => !d.revisado).length;
 
-  useEffect(() => {
-    tryApiFetch<DiaryPost[]>("/api/diaries", posts).then((items) => {
-      if (items.length) setPosts(items);
-    });
-  }, []);
+  useEffect(() => { listDiaries().then(setPosts).catch(() => toast("Erro ao carregar diários")); }, []);
 
-  const persistDiary = async (post: DiaryPost) => {
+  const toggleLike = async (id: string) => {
+    const target = posts.find((d) => d.id === id);
+    if (!target) return;
     try {
-      await apiFetch<DiaryPost>(`/api/diaries/${post.id}`, { method: "PATCH", body: JSON.stringify(post) });
+      const updated = await updateDiary(id, { curtido: !target.curtido, reacoes: target.reacoes + (target.curtido ? -1 : 1), revisado: true });
+      setPosts(posts.map((d) => d.id === id ? updated : d));
+      setViewer((v) => v && v.id === id ? updated : v);
     } catch {
-      // Mantem o fallback local do prototipo.
+      toast("Erro ao atualizar diário");
     }
   };
 
-  const toggleLike = (id: string) => {
-    const next = posts.map((d) => d.id === id ? { ...d, curtido: !d.curtido, reacoes: d.reacoes + (d.curtido ? -1 : 1), revisado: true } : d);
-    setPosts(next);
-    const updated = next.find((d) => d.id === id);
-    if (updated) persistDiary(updated);
-  };
-
-  const sendComment = (id: string, txt: string) => {
+  const sendComment = async (id: string, txt: string) => {
     if (!txt.trim()) return;
     const target = posts.find((d) => d.id === id);
     if (!target) return;
     const mensagem = { autor: "Você", texto: txt.trim(), quando: "Agora" };
-    const next = posts.map((d) => d.id === id
-      ? { ...d, comentarios: d.comentarios + 1, revisado: true, mensagens: [...(d.mensagens ?? []), mensagem] }
-      : d);
-    setPosts(next);
-    const updated = next.find((d) => d.id === id) ?? null;
-    setViewer(updated);
-    if (updated) persistDiary(updated);
+    try {
+      const updated = await updateDiary(id, { comentarios: target.comentarios + 1, revisado: true, mensagens: [...(target.mensagens ?? []), mensagem] });
+      setPosts(posts.map((d) => d.id === id ? updated : d));
+      setViewer(updated);
+    } catch {
+      toast("Erro ao enviar mensagem");
+      return;
+    }
     setDraft("");
     toast("Mensagem enviada ao paciente");
     pushEvent({
@@ -143,7 +135,7 @@ export default function Diaries() {
               <div style={{ height: 220, borderRadius: 12, background: `linear-gradient(150deg, ${viewer.cor[0]}, ${viewer.cor[1]})`, marginBottom: 14 }} />
               <div style={{ fontSize: 14, lineHeight: 1.6 }}>{viewer.desc}</div>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                <Button variant="subtle" sm onClick={() => { toggleLike(viewer.id); setViewer({ ...viewer, curtido: !viewer.curtido, reacoes: viewer.reacoes + (viewer.curtido ? -1 : 1) }); }}>
+                <Button variant="subtle" sm onClick={() => toggleLike(viewer.id)}>
                   <Heart size={14} fill={viewer.curtido ? "var(--terra)" : "none"} color={viewer.curtido ? "var(--terra)" : "currentColor"} />{viewer.reacoes}
                 </Button>
                 <Button variant="subtle" sm onClick={() => nav(`/patients/${viewer.pacienteId}`)}><Stethoscope size={14} />Abrir paciente</Button>

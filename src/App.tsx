@@ -1,8 +1,8 @@
-import { useEffect, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { CommandPalette } from "./components/CommandPalette";
-import { getRole, isAuthenticated, touchSession } from "./lib/auth";
+import { getRole, isAuthenticated, isAuthReady, onAuthChange, waitForAuth } from "./lib/auth";
 import { PORTAL_ACCESS } from "./lib/mock";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
@@ -23,16 +23,27 @@ import Consultation from "./pages/Consultation";
 import PatientProfile from "./pages/PatientProfile";
 import Portal from "./pages/Portal";
 
+/** Espelha a sessão do Supabase Auth de forma reativa para os guards de rota. */
+function useAuthState() {
+  const [state, setState] = useState(() => ({ ready: isAuthReady(), authed: isAuthenticated(), role: getRole() }));
+
+  useEffect(() => {
+    const update = () => setState({ ready: isAuthReady(), authed: isAuthenticated(), role: getRole() });
+    if (!isAuthReady()) waitForAuth().then(update);
+    return onAuthChange(update);
+  }, []);
+
+  return state;
+}
+
 /** Protege a área da clínica. Sem sessão → vai para o login guardando o destino
  *  pretendido (deep-link). Sessão de paciente → manda para o portal dele, pois
  *  não deve enxergar a área da nutricionista. */
 function RequireClinic({ children }: { children: ReactElement }) {
   const location = useLocation();
-  const authed = isAuthenticated();
-  const role = getRole();
+  const { ready, authed, role } = useAuthState();
 
-  // Mantém a sessão "viva" enquanto o usuário navega pela área protegida.
-  useEffect(() => { if (authed) touchSession(); }, [location.pathname, authed]);
+  if (!ready) return null;
 
   if (!authed) {
     const next = encodeURIComponent(location.pathname + location.search);

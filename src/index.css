@@ -351,7 +351,7 @@
   .site-login-field button { border: 0; background: none; color: var(--muted); display: grid; place-items: center; padding: 0; cursor: pointer; }
   .site-login-options { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; margin-top: -2px; }
   .site-login-options label { display: inline-flex; align-items: center; gap: 7px; color: var(--text); }
-<<<<<<< HEAD
+
   .site-login-options input { width: 14px; height: 14px; accent-color: var(--sage); }
   .site-login-options button { border: 0; background: none; padding: 0; color: var(--sage-strong); font: inherit; font-weight: 600; cursor: pointer; }
   .site-login-submit { height: 46px; width: 100%; margin-top: 8px; position: relative; }
@@ -385,7 +385,6 @@
   .portal-login-help-card p { margin: 0; display: flex; align-items: flex-start; gap: 7px; }
   .portal-login-help-card svg { flex-shrink: 0; margin-top: 1px; color: var(--sage); }
   .portal-login-help-card strong { color: var(--text); }
-=======
   .site-login-options input { width: 15px; height: 15px; accent-color: var(--sage); }
   .site-login-submit { height: 68px; width: 100%; margin-top: 10px; position: relative; border-radius: 18px; border: 2px solid var(--text); box-shadow: 7px 7px 0 rgb(var(--c-line) / .92); font-size: 17px; }
   .site-login-submit:active { transform: translate(3px, 3px); box-shadow: 4px 4px 0 rgb(var(--c-line) / .92); }
@@ -443,7 +442,6 @@
     .site-login-headline h2 { font-size: 40px; }
     .site-login-tags { left: 48px; gap: 18px; }
   }
->>>>>>> c807cfc (alterações back/login)
 
   .ghost-dashboard { min-height: 100vh; display: grid; grid-template-columns: 280px 1fr; gap: 24px; padding: 0; color: var(--text); }
   .ghost-dashboard aside { padding: 18px 10px; background: rgb(var(--c-surface) / .48); border-right: 1px solid var(--border); }

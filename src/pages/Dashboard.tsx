@@ -4,27 +4,24 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, Cell } from "rechar
 import { UserPlus, CalendarPlus, FileText, Cake, CheckCircle2, Circle, ArrowRight, Radio } from "lucide-react";
 import { Card, Button, Avatar, Chip, Stat } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { DASH, BIRTHDAYS, TASKS, AGENDA, PATIENTS, CLINIC } from "../lib/mock";
-import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
+import { DASH, BIRTHDAYS, TASKS, CLINIC } from "../lib/mock";
 import { EVENT_META, useEvents } from "../lib/events";
 import { initials, timeAgo } from "../lib/utils";
 import { useEffect, useState } from "react";
-import { tryApiFetch } from "../lib/api";
+import { listPatients, listAppointments } from "../lib/db";
 import type { Appointment, Patient } from "../lib/types";
 
 export default function Dashboard() {
   const nav = useNavigate();
   const toast = useToast();
   const [tasks, setTasks] = useState(TASKS);
-  const [patients] = usePersistentState(LOCAL_KEYS.patients, PATIENTS);
-  const [appointments] = usePersistentState(LOCAL_KEYS.appointments, AGENDA);
-  const [apiPatients, setApiPatients] = useState<Patient[]>(patients);
-  const [apiAppointments, setApiAppointments] = useState<Appointment[]>(appointments);
+  const [apiPatients, setApiPatients] = useState<Patient[]>([]);
+  const [apiAppointments, setApiAppointments] = useState<Appointment[]>([]);
   const { events } = useEvents("clinica");
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
   useEffect(() => {
-    tryApiFetch<Patient[]>("/api/patients", patients).then(setApiPatients);
-    tryApiFetch<Appointment[]>("/api/appointments", appointments).then(setApiAppointments);
+    listPatients().then(setApiPatients).catch(() => toast("Erro ao carregar pacientes"));
+    listAppointments().then(setApiAppointments).catch(() => toast("Erro ao carregar agendamentos"));
   }, []);
   const proximos = apiAppointments.slice(0, 4);
   const ativos = apiPatients.filter((p) => p.status === "ativo").length;

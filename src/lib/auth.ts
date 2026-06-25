@@ -1,108 +1,86 @@
-// Sessão e segurança de acesso da demo.
+// Sessão de acesso da clínica, baseada no Supabase Auth.
 //
-// AVISO IMPORTANTE: este projeto é 100% front-end (sem backend). Tudo aqui roda
-// no navegador, então NÃO substitui autenticação de servidor — qualquer pessoa
-// com o devtools consegue ler/alterar o storage. O objetivo é (1) impedir acesso
-// acidental por URL, (2) simular um fluxo de login realista e (3) aplicar boas
-// práticas de UX de segurança (expiração, bloqueio por tentativas, sessão por
-// aba). Para produção, mova a verificação de credenciais e a emissão de sessão
-// para uma API com cookies httpOnly.
+// O Supabase persiste e renova a sessão sozinho (localStorage + refresh token).
+// Aqui mantemos só um cache em memória do papel/paciente atual (para checagens
+// síncronas em rotas) e a lógica de bloqueio por tentativas de login, que o
+// Supabase não oferece nativamente.
+
+import type { Session } from "@supabase/supabase-js";
+import { supabase, fetchProfile, type Role as ProfileRole } from "./supabaseClient";
 
 export type Role = "nutritionist" | "patient";
 
-type Session = { role: Role; createdAt: number; lastSeen: number };
 type Attempts = { count: number; lockedUntil: number };
+type AuthState = { userId: string; role: Role; patientId: string | null } | null;
 
-const SESSION_KEY = "nutriflow.session";
 const ATTEMPTS_KEY = "nutriflow.login.attempts";
 const PORTAL_KEY = "nutriflow.portal.session";
-const EXPIRED_FLAG = "nutriflow.session.expired";
 
-/** Inatividade máxima antes da sessão expirar. */
-export const SESSION_TTL = 8 * 60 * 60 * 1000; // 8h
 /** Tentativas de login antes do bloqueio temporário. */
 export const MAX_ATTEMPTS = 5;
 /** Duração do bloqueio após estourar as tentativas. */
 export const LOCK_MS = 5 * 60 * 1000; // 5 min
 
 const hasWindow = typeof window !== "undefined";
+const roleMap: Record<ProfileRole, Role> = { admin: "nutritionist", patient: "patient" };
 
-/* ----------------------------- sessão de acesso ---------------------------- */
+let cached: AuthState = null;
+let ready = false;
+const listeners = new Set<() => void>();
 
-function rawSession(): { value: string; persistent: boolean } | null {
-  if (!hasWindow) return null;
-  const local = window.localStorage.getItem(SESSION_KEY);
-  if (local) return { value: local, persistent: true };
-  const session = window.sessionStorage.getItem(SESSION_KEY);
-  if (session) return { value: session, persistent: false };
-  return null;
-}
-
-function readSession(): Session | null {
-  const raw = rawSession();
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw.value) as Session;
-    if (parsed.role !== "nutritionist" && parsed.role !== "patient") throw new Error("role inválida");
-    if (Date.now() - parsed.lastSeen > SESSION_TTL) {
-      clearSession();
-      if (hasWindow) window.sessionStorage.setItem(EXPIRED_FLAG, "1");
-      return null;
-    }
-    return parsed;
-  } catch {
-    clearSession();
-    return null;
+async function syncFromSession(session: Session | null) {
+  if (!session) {
+    cached = null;
+  } else {
+    const profile = await fetchProfile(session.user.id);
+    cached = { userId: session.user.id, role: roleMap[profile.role], patientId: profile.patient_id };
   }
+  ready = true;
+  listeners.forEach((fn) => fn());
 }
 
-export function getSession(): Session | null {
-  return readSession();
+const initPromise = supabase.auth.getSession().then(({ data }) => syncFromSession(data.session));
+supabase.auth.onAuthStateChange((_event, session) => { syncFromSession(session); });
+
+/** Assina mudanças de sessão (login/logout). Retorna função de cancelamento. */
+export function onAuthChange(fn: () => void) {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+export function isAuthReady(): boolean {
+  return ready;
+}
+
+/** Resolve quando a sessão inicial (persistida) terminou de carregar. */
+export function waitForAuth(): Promise<void> {
+  return initPromise;
 }
 
 export function isAuthenticated(): boolean {
-  return readSession() !== null;
+  return cached !== null;
 }
 
 export function getRole(): Role | null {
-  return readSession()?.role ?? null;
+  return cached?.role ?? null;
 }
 
-/** Cria uma nova sessão. `remember` decide entre persistir (localStorage) ou
- *  durar apenas enquanto a aba estiver aberta (sessionStorage). */
-export function startSession(role: Role, remember: boolean) {
-  if (!hasWindow) return;
-  clearSession();
-  window.sessionStorage.removeItem(EXPIRED_FLAG);
-  const session: Session = { role, createdAt: Date.now(), lastSeen: Date.now() };
-  const target = remember ? window.localStorage : window.sessionStorage;
-  target.setItem(SESSION_KEY, JSON.stringify(session));
+export function getPatientId(): string | null {
+  return cached?.patientId ?? null;
 }
 
-/** Renova o carimbo de atividade para evitar expiração durante o uso. */
-export function touchSession() {
-  const raw = rawSession();
-  if (!raw) return;
-  try {
-    const session = JSON.parse(raw.value) as Session;
-    session.lastSeen = Date.now();
-    const target = raw.persistent ? window.localStorage : window.sessionStorage;
-    target.setItem(SESSION_KEY, JSON.stringify(session));
-  } catch {
-    clearSession();
-  }
+export function getUserId(): string | null {
+  return cached?.userId ?? null;
 }
 
-export function clearSession() {
-  if (!hasWindow) return;
-  window.localStorage.removeItem(SESSION_KEY);
-  window.sessionStorage.removeItem(SESSION_KEY);
+export async function login(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  await syncFromSession(data.session);
 }
 
-/** Indica se a última sessão caiu por inatividade. Leitura não-destrutiva (segura
- *  sob StrictMode); o flag é limpo automaticamente no próximo startSession. */
-export function wasSessionExpired(): boolean {
-  return hasWindow && window.sessionStorage.getItem(EXPIRED_FLAG) === "1";
+export async function logout() {
+  await supabase.auth.signOut();
 }
 
 /* ------------------------- bloqueio por brute-force ------------------------ */

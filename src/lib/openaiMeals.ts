@@ -1,5 +1,5 @@
 import type { Patient, PatientPlan } from "./types";
-import { apiFetch } from "./api";
+import { supabase } from "./supabaseClient";
 
 export type MacroTotals = { kcal: number; prot: number; carb: number; gord: number };
 
@@ -33,8 +33,16 @@ export type MealGenerationRequest = {
 };
 
 export async function generateMealPlanWithOpenAI(input: MealGenerationRequest): Promise<GeneratedMealPlan> {
-  return apiFetch<GeneratedMealPlan>("/api/generate-meal-plan", {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Sessão expirada. Faça login novamente.");
+
+  const response = await fetch("/api/generate-meal-plan", {
     method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
   });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error || "Erro ao chamar a API da OpenAI.");
+  return payload as GeneratedMealPlan;
 }
