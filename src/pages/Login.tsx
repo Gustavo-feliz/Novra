@@ -15,23 +15,18 @@ import {
   Lock,
   Mail,
   Salad,
-<<<<<<< HEAD
   Search,
   ShieldAlert,
-  Stethoscope,
-  UserPlus,
-  UserRound,
-=======
   ShieldCheck,
   Sparkles,
   Stethoscope,
+  UserPlus,
+  UserRound,
   Users,
->>>>>>> c807cfc (alterações back/login)
 } from "lucide-react";
 import { Button } from "../components/ui";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { PORTAL_ACCESS } from "../lib/mock";
-<<<<<<< HEAD
 import { cx, isValidEmail } from "../lib/utils";
 import {
   clearFailedAttempts,
@@ -43,9 +38,8 @@ import {
   wasSessionExpired,
   type Role,
 } from "../lib/auth";
-=======
+
 import { loginWithApi } from "../lib/api";
->>>>>>> c807cfc (alterações back/login)
 
 const USERS: Record<Role, { email: string; password: string; target: string }> = {
   nutritionist: { email: "nutri123@gmail.com", password: "nutri123", target: "/" },
