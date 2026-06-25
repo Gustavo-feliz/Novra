@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
@@ -23,6 +23,7 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "../components/ui";
+import { ThemeToggle } from "../components/ThemeToggle";
 import { PORTAL_ACCESS } from "../lib/mock";
 import { isValidEmail } from "../lib/utils";
 import { clearFailedAttempts, getLockRemaining, getRole, LOCK_MS, login, recordFailedAttempt, type Role } from "../lib/auth";
@@ -114,32 +115,50 @@ export default function Login() {
 
   return (
     <main className="site-login">
+      <div className="site-login-aurora" aria-hidden="true">
+        <span className="aurora a1" />
+        <span className="aurora a2" />
+        <span className="aurora a3" />
+      </div>
+
       <div className="site-login-top">
         <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div><span>Novra</span></div>
+        <ThemeToggle />
       </div>
 
       <motion.section
         className="site-login-shell"
-        initial={{ opacity: 0, y: 18, scale: .985 }}
+        initial={{ opacity: 0, y: 22, scale: .98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: .42 }}
+        transition={{ duration: .5, ease: [0.16, 1, 0.3, 1] }}
       >
         <section className="site-login-formpane">
-          <div className="seg site-login-roles">
-            {ROLE_TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" className={id === role ? "on" : undefined} onClick={() => selectRole(id)}>
-                <Icon size={14} />{label}
-              </button>
-            ))}
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: .4, delay: .05 }}
+          >
+            <div className="seg site-login-roles">
+              {ROLE_TABS.map(({ id, label, icon: Icon }) => (
+                <button key={id} type="button" className={id === role ? "on" : undefined} onClick={() => selectRole(id)}>
+                  <Icon size={14} />{label}
+                </button>
+              ))}
+            </div>
 
-          <div className="site-login-kicker">Painel da nutricionista</div>
-          <div className="site-login-copy">
-            <h1>Acesse sua clínica</h1>
-            <p>Organize pacientes, agenda, planos alimentares e mensagens em um painel seguro para o seu atendimento.</p>
-          </div>
+            <div className="site-login-kicker"><Sparkles size={12} />Painel da nutricionista</div>
+            <div className="site-login-copy">
+              <h1>Acesse sua<br />clínica</h1>
+              <p>Organize pacientes, agenda, planos alimentares e mensagens em um painel seguro para o seu atendimento.</p>
+            </div>
+          </motion.div>
 
-          <div className="site-login-form">
+          <motion.div
+            className="site-login-form"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: .4, delay: .12 }}
+          >
             <label className="site-login-field">
               <span>E-mail</span>
               <div>
@@ -184,14 +203,30 @@ export default function Login() {
               </label>
             </div>
 
-            {locked ? (
-              <div className="banner alert site-login-banner">
-                <ShieldAlert size={15} />
-                <span>Acesso bloqueado por seguranca. Tente de novo em <strong className="num">{formatLock(lockMs)}</strong>.</span>
-              </div>
-            ) : error ? (
-              <div className="banner alert">{error}</div>
-            ) : null}
+            <AnimatePresence mode="wait">
+              {locked ? (
+                <motion.div
+                  key="locked"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="banner alert site-login-banner"
+                >
+                  <ShieldAlert size={15} />
+                  <span>Acesso bloqueado por seguranca. Tente de novo em <strong className="num">{formatLock(lockMs)}</strong>.</span>
+                </motion.div>
+              ) : error ? (
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="banner alert site-login-banner"
+                >
+                  {error}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
 
             <Button variant="primary" onClick={submit} className="site-login-submit" disabled={loading || locked}>
               {locked ? "Bloqueado" : loading ? "Entrando..." : "Entrar no painel"} <span><ArrowRight size={17} /></span>
@@ -202,7 +237,7 @@ export default function Login() {
               <span>Ambiente de demonstração. Toque para preencher o acesso de exemplo.</span>
               <b>{DEMO[role].email}</b>
             </button>
-          </div>
+          </motion.div>
 
           <div className="site-login-foot">
             <span>© 2026 Novra</span>
@@ -219,19 +254,34 @@ export default function Login() {
           <div className="site-orb" />
           <div className="site-plate" />
 
-          <article className="login-metric revenue">
+          <motion.article
+            className="login-metric revenue"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: .5, delay: .25 }}
+          >
             <div><BarChart3 size={18} /> Receita no mês</div>
             <strong>R$ 12.840</strong>
             <span>+18% vs. mês anterior</span>
-          </article>
+          </motion.article>
 
-          <article className="login-metric dark">
+          <motion.article
+            className="login-metric dark"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: .5, delay: .35 }}
+          >
             <div><Activity size={18} /> Adesão dos pacientes</div>
             <strong>91%</strong>
             <span>32 planos ativos acompanhados</span>
-          </article>
+          </motion.article>
 
-          <article className="login-next">
+          <motion.article
+            className="login-next"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: .5, delay: .45 }}
+          >
             <div className="login-next-head">
               <span><CalendarDays size={16} /> Próxima consulta</span>
               <b>14:30</b>
@@ -241,7 +291,7 @@ export default function Login() {
               <div><strong>Mariana Costa</strong><small>Retorno gestacional · Online</small></div>
               <ChevronRight size={17} />
             </div>
-          </article>
+          </motion.article>
 
           <div className="site-login-headline">
             <h2>O controle da sua clínica, da agenda ao plano alimentar.</h2>
