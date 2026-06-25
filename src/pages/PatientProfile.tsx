@@ -1826,7 +1826,7 @@ export default function PatientProfile() {
         <div className="shell">
           {/* topbar */}
           <div className="topbar">
-            <Link to="/patients" className="brand" style={{ textDecoration: "none", color: "inherit" }}><div className="brand-mark"><Salad size={15} /></div><span className="hidem">NutriFlow</span></Link>
+            <Link to="/patients" className="brand" style={{ textDecoration: "none", color: "inherit" }}><div className="brand-mark"><Salad size={15} /></div><span className="hidem">Novra</span></Link>
             <div className="crumb hidem"><ChevronLeft size={15} /><Link to="/patients" style={{ color: "inherit", textDecoration: "none" }}>Pacientes</Link><span className="sep">/</span><b>{PAT.nome}</b></div>
             <div className="spacer" />
             <Link to="/patients" className="kbtn hidem" style={{ textDecoration: "none" }}><ChevronLeft size={14} />Voltar aos pacientes</Link>

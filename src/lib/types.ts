@@ -49,6 +49,7 @@ export interface DiaryPost {
   comentarios: number;
   curtido: boolean;
   revisado: boolean;
+  imageUrl?: string;
   mensagens?: DiaryMessage[];
 }
 

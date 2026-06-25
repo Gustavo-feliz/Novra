@@ -71,6 +71,7 @@ type PortalPost = {
   desc: string;
   cor: [string, string];
   reacoes: number;
+  imageUrl?: string;
 };
 
 const CURRENT_PATIENT = PATIENTS.find((p) => p.id === PORTAL_ACCESS.patientId) ?? PATIENTS[0];
@@ -160,8 +161,7 @@ function PortalLogin({ slug, onUnlock }: { slug?: string; onUnlock: () => void }
     <main className="portal-login">
       <div className="portal-login-glow" aria-hidden="true" />
       <div className="portal-login-top">
-        <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div>NutriFlow</div>
-        <ThemeToggle />
+        <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div>Novra</div>
       </div>
 
       <motion.section
@@ -267,7 +267,7 @@ export default function Portal() {
       <header className="portal-topbar">
         <Link to={`/portal/${PORTAL_ACCESS.slug}`} className="portal-brand">
           <div className="brand-mark"><Salad size={16} /></div>
-          <span>NutriFlow</span>
+          <span>Novra</span>
         </Link>
         <div className="portal-patient">
           <div className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>{initials(patient.nome)}</div>
@@ -455,12 +455,36 @@ function PortalDiary() {
   const [posts, setPosts] = usePersistentState(LOCAL_KEYS.portalDiary, SEED_PORTAL_POSTS);
   const [meal, setMeal] = useState("Almoco");
   const [desc, setDesc] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  function addPost() {
+  async function addPost() {
     const clean = sanitizeText(desc, 500).trim();
-    const post: PortalPost = { id: uid(), refeicao: meal, quando: "Agora", desc: clean || "Foto enviada para avaliacao.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0 };
+    let imageUrl: string | undefined = undefined;
+    
+    if (file) {
+      setUploading(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imageUrl = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+        await new Promise(r => setTimeout(r, 100));
+      } catch (err) {
+        toast("Erro ao fazer upload da foto");
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
+    const post: PortalPost = { id: uid(), refeicao: meal, quando: "Agora", desc: clean || "Foto enviada para avaliacao.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0, imageUrl };
     setPosts([post, ...posts]);
     setDesc("");
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
     toast("Registro enviado para a nutricionista");
     pushEvent({
       tipo: "diario",
@@ -476,19 +500,20 @@ function PortalDiary() {
     <div className="portal-page">
       <PageHead title="Diario alimentar" sub="Envie fotos e comentarios das refeicoes." />
       <section className="card pad portal-upload-card">
-        <div className="upload"><Upload size={20} /><strong>Adicionar foto da refeicao</strong><span>PNG ou JPG, ate 10 MB</span></div>
+        <div className="upload" style={{ cursor: "pointer" }} onClick={() => fileRef.current?.click()}><Upload size={20} /><strong>{file ? file.name : "Adicionar foto da refeicao"}</strong><span>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "PNG ou JPG, ate 10 MB"}</span></div>
+        <input ref={fileRef} type="file" accept="image/*" onChange={(e) => { if (e.target.files?.[0]) setFile(e.target.files[0]); }} style={{ display: "none" }} />
         <div className="portal-form-row">
           <select className="select" value={meal} onChange={(e) => setMeal(e.target.value)}>
             {["Cafe da manha", "Almoco", "Lanche", "Jantar", "Ceia"].map((m) => <option key={m}>{m}</option>)}
           </select>
-          <Button variant="primary" onClick={addPost}><Camera size={15} />Enviar</Button>
+          <Button variant="primary" onClick={addPost} disabled={uploading}><Camera size={15} />{uploading ? "Enviando..." : "Enviar"}</Button>
         </div>
         <textarea className="input" rows={3} maxLength={500} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Comentario opcional" />
       </section>
       <div className="portal-diary-grid">
         {posts.map((post) => (
           <article className="diary" key={post.id}>
-            <div className="diary-img" style={{ background: `linear-gradient(145deg, ${post.cor[0]}, ${post.cor[1]})` }}><span className="t">{post.refeicao}</span></div>
+            <div className="diary-img" style={{ background: post.imageUrl ? `url(${post.imageUrl}) center / cover` : `linear-gradient(145deg, ${post.cor[0]}, ${post.cor[1]})` }}><span className="t">{post.refeicao}</span></div>
             <div className="diary-bd"><strong>{post.quando}</strong><p>{post.desc}</p><div className="diary-ft"><span><MessageCircle size={13} />{post.reacoes}</span></div></div>
           </article>
         ))}

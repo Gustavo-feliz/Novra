@@ -165,9 +165,9 @@ export const STATUS_META: Record<string, { label: string; chip: string }> = {
 
 /* ============================ DIÁRIOS (visão geral) ============================ */
 export const DIARIES: DiaryPost[] = [
-  { id: "dy2", pacienteId: "p1", paciente: "Mariana Costa Ribeiro", refeicao: "Café da manhã", quando: "Hoje · 08:15", desc: "Tapioca com ovo mexido, mamão e café sem açúcar.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0, comentarios: 0, curtido: false, revisado: false },
-  { id: "dy8", pacienteId: "p1", paciente: "Mariana Costa Ribeiro", refeicao: "Jantar", quando: "Ontem · 19:40", desc: "Sopa de abóbora com frango desfiado e torradas integrais.", cor: ["#9DB99F", "#6E8C72"], reacoes: 1, comentarios: 1, curtido: true, revisado: true },
-];
+  { id: "dy2", pacienteId: "p1", paciente: "Mariana Costa Ribeiro", refeicao: "Café da manhã", quando: "Hoje · 08:15", desc: "Tapioca com ovo mexido, mamão e café sem açúcar.", cor: ["#9DB99F", "#6E8C72"], reacoes: 0, comentarios: 0, curtido: false, revisado: false, imageUrl: undefined },
+  { id: "dy8", pacienteId: "p1", paciente: "Mariana Costa Ribeiro", refeicao: "Jantar", quando: "Ontem · 19:40", desc: "Sopa de abóbora com frango desfiado e torradas integrais.", cor: ["#9DB99F", "#6E8C72"], reacoes: 1, comentarios: 1, curtido: true, revisado: true, imageUrl: undefined },
+]
 
 /* ============================ QUESTIONÁRIOS (banco) ============================ */
 export const QUESTIONNAIRES: QuestionnaireTemplate[] = [

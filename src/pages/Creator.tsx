@@ -133,7 +133,7 @@ export default function Creator() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <div className="brand-mark" style={{ width: 30, height: 30, borderRadius: 9, background: "linear-gradient(145deg, var(--sage), var(--blue))", boxShadow: "0 8px 20px -9px rgb(var(--c-blue) / .55)" }}><Sparkles size={16} /></div>
-            <div className="h1">NutriFlow Creator</div>
+            <div className="h1">Novra Creator</div>
           </div>
           <div className="muted" style={{ fontSize: 13, marginTop: 5 }}>IA conectada a OpenAI GPT-4o para gerar refeicoes, macros, alertas e substituicoes em JSON estruturado</div>
         </div>

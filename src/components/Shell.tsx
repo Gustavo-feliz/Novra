@@ -28,7 +28,7 @@ const PRINCIPAL: Item[] = [
 const FERRAMENTAS: Item[] = [
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/agendamento", label: "Link de agendamento", icon: Link2 },
-  { to: "/creator", label: "NutriFlow Creator", icon: Sparkles },
+  { to: "/creator", label: "Novra Creator", icon: Sparkles },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];
 
@@ -73,7 +73,7 @@ export function Shell() {
       <header className="topbar" style={topbar}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 600, letterSpacing: "-.02em" }}>
           <div className="brand-mark"><Salad size={15} /></div>
-          <span className="hide-sm">NutriFlow</span>
+          <span className="hide-sm">Novra</span>
         </div>
         <div style={{ flex: 1 }} />
         <button className="kbd-btn hide-sm" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}>

@@ -12,6 +12,19 @@ import type { Appointment, Patient } from "../lib/types";
 import { listAppointments, createAppointment, listPatients } from "../lib/db";
 import { getUserId } from "../lib/auth";
 
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateToDayIndex(value: string) {
+  const date = new Date(value);
+  const day = date.getDay();
+  return day === 0 ? null : day - 1;
+}
+
 type View = "dia" | "semana" | "mes";
 const MONTH_DAYS = 30; // junho/2026 começa numa segunda-feira
 const MONTH_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -25,7 +38,7 @@ export default function Agenda() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [form, setForm] = useState({ paciente: "", dia: "3", hora: "14:00", modo: "Online" as "Online" | "Presencial", tipo: "Retorno" });
+  const [form, setForm] = useState({ paciente: "", dia: String(dateToDayIndex(formatDateInput(new Date())) ?? 0), hora: "14:00", modo: "Online" as "Online" | "Presencial", tipo: "Retorno", date: formatDateInput(new Date()) });
 
   useEffect(() => { if (params.get("nova")) { setNova(true); setParams({}, { replace: true }); } }, [params, setParams]);
   useEffect(() => {
@@ -209,7 +222,11 @@ export default function Agenda() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Field label="Paciente"><select className="select" value={form.paciente} onChange={(e) => setForm({ ...form, paciente: e.target.value })}>{patients.map((p) => <option key={p.id}>{p.nome}</option>)}</select></Field>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <Field label="Dia da semana"><select className="select" value={form.dia} onChange={(e) => setForm({ ...form, dia: e.target.value })}>{WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></Field>
+              <Field label="Data"><input className="input" type="date" value={form.date} onChange={(e) => {
+                const date = e.target.value;
+                const dayIndex = dateToDayIndex(date);
+                setForm({ ...form, date, dia: String(dayIndex ?? 0) });
+              }} /></Field>
               <Field label="Hora"><Input className="num" value={form.hora} onChange={(e) => setForm({ ...form, hora: e.target.value })} placeholder="14:00" /></Field>
             </div>
             <Field label="Tipo"><Input value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} /></Field>

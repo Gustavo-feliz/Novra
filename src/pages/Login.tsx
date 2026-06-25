@@ -23,7 +23,6 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "../components/ui";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { PORTAL_ACCESS } from "../lib/mock";
 import { isValidEmail } from "../lib/utils";
 import { clearFailedAttempts, getLockRemaining, getRole, LOCK_MS, login, recordFailedAttempt, type Role } from "../lib/auth";
@@ -116,8 +115,7 @@ export default function Login() {
   return (
     <main className="site-login">
       <div className="site-login-top">
-        <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div><span>NutriFlow</span></div>
-        <ThemeToggle />
+        <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div><span>Novra</span></div>
       </div>
 
       <motion.section
@@ -207,7 +205,7 @@ export default function Login() {
           </div>
 
           <div className="site-login-foot">
-            <span>© 2026 NutriFlow</span>
+            <span>© 2026 Novra</span>
             <span><ShieldCheck size={13} /> Autenticação via Supabase + GPT-4o no backend</span>
           </div>
         </section>
@@ -215,7 +213,7 @@ export default function Login() {
         <aside className="site-login-visual">
           <div className="site-login-visual-top">
             <div><Sparkles size={18} /> Clínica em ordem</div>
-            <span>NutriFlow OS</span>
+            <span>Novra OS</span>
           </div>
 
           <div className="site-orb" />

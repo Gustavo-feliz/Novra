@@ -97,13 +97,14 @@ export default function Diaries() {
       ) : (
         <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
           {filtered.map((d) => (
-            <div key={d.id} className="diary" onClick={() => { setViewer(d); setDraft(""); }}>
-              <div className="diary-img" style={{ background: `linear-gradient(150deg, ${d.cor[0]}, ${d.cor[1]})`, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div key={d.id} className="diary" onClick={() => { setViewer(d); setDraft(""); }} style={{ cursor: "pointer" }}>
+              <div className="diary-img" style={{ background: d.imageUrl ? `url(${d.imageUrl}) center / cover` : `linear-gradient(150deg, ${d.cor[0]}, ${d.cor[1]})`, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 10, position: "relative" }}>
+                {d.imageUrl && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,.1), rgba(0,0,0,.3))" }} />}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", position: "relative", zIndex: 1 }}>
                   <span className="t">{d.refeicao}</span>
                   {!d.revisado && <span className="chip terra" style={{ height: 21, background: "rgba(255,255,255,.9)", color: "var(--terra)" }}>novo</span>}
                 </div>
-                <span className="t" style={{ alignSelf: "flex-start" }}>{d.quando}</span>
+                <span className="t" style={{ alignSelf: "flex-start", position: "relative", zIndex: 1 }}>{d.quando}</span>
               </div>
               <div className="diary-bd">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -132,7 +133,8 @@ export default function Diaries() {
               <button className="iconbtn" onClick={() => setViewer(null)}><X size={17} /></button>
             </div>
             <div className="modal-b">
-              <div style={{ height: 220, borderRadius: 12, background: `linear-gradient(150deg, ${viewer.cor[0]}, ${viewer.cor[1]})`, marginBottom: 14 }} />
+              {viewer.imageUrl && <div style={{ height: 220, borderRadius: 12, background: `url(${viewer.imageUrl}) center / cover`, marginBottom: 14 }} />}
+              {!viewer.imageUrl && <div style={{ height: 220, borderRadius: 12, background: `linear-gradient(150deg, ${viewer.cor[0]}, ${viewer.cor[1]})`, marginBottom: 14 }} />}
               <div style={{ fontSize: 14, lineHeight: 1.6 }}>{viewer.desc}</div>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                 <Button variant="subtle" sm onClick={() => toggleLike(viewer.id)}>

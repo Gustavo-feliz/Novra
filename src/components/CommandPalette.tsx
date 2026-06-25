@@ -41,7 +41,7 @@ export function CommandPalette() {
     { id: "lam", label: "Lâminas", icon: LayoutTemplate, run: () => goNav("/laminas") },
     { id: "age", label: "Agenda", icon: CalendarDays, run: () => goNav("/agenda") },
     { id: "book", label: "Link de agendamento", icon: Link2, run: () => goNav("/agendamento") },
-    { id: "cre", label: "NutriFlow Creator", icon: Sparkles, run: () => goNav("/creator") },
+    { id: "cre", label: "Novra Creator", icon: Sparkles, run: () => goNav("/creator") },
     { id: "wa", label: "WhatsApp automático", icon: MessageCircle, run: () => goNav("/whatsapp") },
     { id: "set", label: "Configurações", icon: Settings, run: () => goNav("/settings") },
     { id: "np", label: "Novo paciente", icon: UserPlus, hint: "ação", run: () => goNav("/patients?novo=1") },

@@ -24,7 +24,7 @@ export default function Onboarding() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass" style={{ width: "100%", maxWidth: 540, padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <div className="brand-mark"><Salad size={15} /></div>
-          <span style={{ fontWeight: 600, letterSpacing: "-.02em" }}>Configurar NutriFlow</span>
+          <span style={{ fontWeight: 600, letterSpacing: "-.02em" }}>Configurar Novra</span>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 26 }}>

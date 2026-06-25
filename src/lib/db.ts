@@ -78,7 +78,7 @@ export async function deletePatient(id: string) {
 /* ----------------------------- appointments ------------------------------ */
 
 function rowToAppointment(r: any): Appointment & { id: string } {
-  return { id: r.id, paciente: r.paciente, hora: r.hora, dur: r.dur, tipo: r.tipo, modo: r.modo, dia: r.dia };
+  return { id: r.id, paciente: r.paciente, hora: r.hora, dur: Number(r.dur), tipo: r.tipo, modo: r.modo, dia: Number(r.dia) };
 }
 
 export async function listAppointments(): Promise<Appointment[]> {
@@ -133,10 +133,28 @@ export async function listDiaries(): Promise<DiaryPost[]> {
   return (data ?? []).map(rowToDiary);
 }
 
-export async function updateDiary(id: string, patch: Partial<{ curtido: boolean; revisado: boolean; reacoes: number; comentarios: number; mensagens: DiaryPost["mensagens"] }>): Promise<DiaryPost> {
+export async function updateDiary(id: string, patch: Partial<{ curtido: boolean; revisado: boolean; reacoes: number; comentarios: number; imageUrl?: string; mensagens: DiaryPost["mensagens"] }>): Promise<DiaryPost> {
   const { data, error } = await supabase.from("diaries").update(patch).eq("id", id).select("*").single();
   if (error) throw error;
   return rowToDiary(data);
+}
+
+export async function createDiary(diary: Omit<DiaryPost, "id" | "revisado" | "curtido" | "reacoes" | "comentarios" | "mensagens">, createdBy: string): Promise<DiaryPost> {
+  const { data, error } = await supabase.from("diaries")
+    .insert({ paciente_id: diary.pacienteId, paciente: diary.paciente, refeicao: diary.refeicao, quando: diary.quando, desc: diary.desc, cor: diary.cor, image_url: diary.imageUrl, created_by: createdBy })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return rowToDiary(data);
+}
+
+export async function uploadDiaryImage(file: File, patientId: string): Promise<string> {
+  const ext = file.name.split(".").pop();
+  const path = `diaries/${patientId}/${Date.now()}.${ext}`;
+  const { error: uploadErr } = await supabase.storage.from("media").upload(path, file);
+  if (uploadErr) throw uploadErr;
+  const { data } = supabase.storage.from("media").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 /* ---------------------------- questionnaires ------------------------------ */
