@@ -93,6 +93,16 @@ function useQuestionariosPaciente(patientId: string) {
   return { questionarios, setQuestionarios };
 }
 
+/** Conta faturas em aberto + questionarios pendentes, para sinalizar no menu
+ *  "Mais" que ha algo aguardando o paciente fora da home. */
+function usePendingCount() {
+  const [finance] = usePersistentState(LOCAL_KEYS.portalFinance, PORTAL_FINANCE);
+  const { questionarios } = useQuestionariosPaciente(PORTAL_ACCESS.patientId);
+  const openInvoices = finance.filter((f) => f.status !== "Pago").length;
+  const pendingQuestionnaires = questionarios.filter((q) => q.status === "pendente").length;
+  return openInvoices + pendingQuestionnaires;
+}
+
 const MAIN_NAV = [
   { to: "", label: "Inicio", icon: Home, end: true },
   { to: "plano", label: "Plano", icon: Apple },
@@ -260,6 +270,7 @@ export default function Portal() {
   );
   const [sheet, setSheet] = useState(false);
   const patient = PATIENTS.find((p) => p.id === PORTAL_ACCESS.patientId) ?? PATIENTS[0];
+  const pendingCount = usePendingCount();
 
   if (!unlocked) return <PortalLogin slug={slug} onUnlock={() => setUnlocked(true)} />;
 
@@ -281,7 +292,10 @@ export default function Portal() {
         <NotificationBell audience="paciente" patientId={PORTAL_ACCESS.patientId} linkKey="portalLink"
           onNavigate={(path) => navigate(`/portal/${PORTAL_ACCESS.slug}/${path}`)} />
         <button className="iconbtn hide-sm" onClick={() => logout(navigate)} title="Sair"><LogOut size={16} /></button>
-        <button className="iconbtn portal-menu-btn" onClick={() => setSheet(true)} aria-label="Abrir menu"><Menu size={17} /></button>
+        <button className="iconbtn portal-menu-btn" onClick={() => setSheet(true)} aria-label="Abrir menu">
+          <Menu size={17} />
+          {pendingCount > 0 && <span className="menu-pending-dot" />}
+        </button>
       </header>
 
       <div className="portal-layout">
@@ -459,12 +473,15 @@ function PortalDiary() {
   const [desc, setDesc] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function addPost() {
+    if (submitting) return;
+    setSubmitting(true);
     const clean = sanitizeText(desc, 500).trim();
     let imageUrl: string | undefined = undefined;
-    
+
     if (file) {
       setUploading(true);
       try {
@@ -477,6 +494,7 @@ function PortalDiary() {
       } catch (err) {
         toast("Erro ao fazer upload da foto");
         setUploading(false);
+        setSubmitting(false);
         return;
       }
       setUploading(false);
@@ -496,6 +514,7 @@ function PortalDiary() {
       patientId: PORTAL_ACCESS.patientId,
       clinicLink: "/diarios",
     });
+    setSubmitting(false);
   }
 
   return (
@@ -508,7 +527,7 @@ function PortalDiary() {
           <select className="select" value={meal} onChange={(e) => setMeal(e.target.value)}>
             {["Cafe da manha", "Almoco", "Lanche", "Jantar", "Ceia"].map((m) => <option key={m}>{m}</option>)}
           </select>
-          <Button variant="primary" onClick={addPost} disabled={uploading}><Camera size={15} />{uploading ? "Enviando..." : "Enviar"}</Button>
+          <Button variant="primary" onClick={addPost} disabled={submitting}><Camera size={15} />{submitting ? "Enviando..." : "Enviar"}</Button>
         </div>
         <textarea className="input" rows={3} maxLength={500} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Comentario opcional" />
       </section>

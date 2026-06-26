@@ -49,7 +49,7 @@ export function InstallAppButton({ sm }: { sm?: boolean }) {
 
   return (
     <>
-      <Button variant="ghost" sm={sm} onClick={install} title="Instalar app" aria-label="Instalar app">
+      <Button variant="ghost" sm={sm} onClick={install} title="Instalar app" aria-label="Instalar app" className="iab-btn">
         <Download size={sm ? 13 : 15} /><span className="iab-label">Instalar app</span>
       </Button>
 
