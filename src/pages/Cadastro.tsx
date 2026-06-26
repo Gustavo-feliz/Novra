@@ -33,7 +33,13 @@ export default function Cadastro() {
       else setSent(true);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      setError(/registered|already/i.test(msg) ? "Este e-mail já tem uma conta." : "Não foi possível criar a conta agora.");
+      setError(
+        /registered|already/i.test(msg)
+          ? "Este e-mail já tem uma conta."
+          : /database error|not authorized|autorizado/i.test(msg)
+            ? "Este e-mail não está autorizado a criar conta. Fale com o administrador."
+            : "Não foi possível criar a conta agora."
+      );
     } finally {
       setLoading(false);
     }
