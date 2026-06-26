@@ -24,6 +24,12 @@ export function NovraMark() {
   );
 }
 
+export function AuthMobileBrand() {
+  return (
+    <Link to="/login" className="auth-logo auth-logo-mobile"><NovraMark /><span>novra</span></Link>
+  );
+}
+
 export function AuthAside() {
   return (
     <aside className="auth-aside">

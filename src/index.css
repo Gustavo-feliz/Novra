@@ -329,6 +329,7 @@
   .auth-aside-inner { position: relative; z-index: 1; width: 100%; max-width: 470px; }
   .auth-logo { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; color: #f3f4ef; font-size: 27px; font-weight: 600; letter-spacing: -.02em; }
   .auth-logo-mark { width: 38px; height: 38px; flex-shrink: 0; }
+  .auth-logo-mobile { display: none; }
   .auth-headline { font-family: var(--serif); font-optical-sizing: auto; font-weight: 500; font-size: clamp(34px, 3.4vw, 46px); line-height: 1.12; letter-spacing: -.012em; color: #f4f4ee; margin: 40px 0 0; text-wrap: balance; }
   .auth-headline em { font-style: normal; color: #74cf91; }
   .auth-leaf { font-size: .78em; }
@@ -397,6 +398,10 @@
     .auth { grid-template-columns: 1fr; }
     .auth-aside { display: none; }
     .auth-main { min-height: 100vh; padding: 32px 18px; }
+    .auth-logo-mobile { display: inline-flex; color: var(--text); font-size: 19px; }
+    .auth-logo-mobile .auth-logo-mark { width: 30px; height: 30px; }
+    .auth-card { padding: 26px 20px 28px; }
+    .auth-field > div { height: 48px; }
   }
 
   .ghost-dashboard { min-height: 100vh; display: grid; grid-template-columns: 280px 1fr; gap: 24px; padding: 0; color: var(--text); }

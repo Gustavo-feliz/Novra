@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Lock, Mail, MailCheck, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "../components/ui";
-import { AuthAside } from "../components/AuthAside";
+import { AuthAside, AuthMobileBrand } from "../components/AuthAside";
 import { isValidEmail } from "../lib/utils";
 import { signUpPatient } from "../lib/auth";
 import { PORTAL_ACCESS } from "../lib/mock";
@@ -50,6 +50,7 @@ export default function Convite() {
       <AuthAside />
 
       <section className="auth-main">
+        <AuthMobileBrand />
         <motion.div
           className="auth-card"
           initial={{ opacity: 0, y: 18 }}

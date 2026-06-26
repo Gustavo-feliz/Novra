@@ -14,7 +14,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "../components/ui";
-import { AuthAside } from "../components/AuthAside";
+import { AuthAside, AuthMobileBrand } from "../components/AuthAside";
 import { PORTAL_ACCESS } from "../lib/mock";
 import { isValidEmail } from "../lib/utils";
 import {
@@ -151,6 +151,7 @@ export default function Login() {
       <AuthAside />
 
       <section className="auth-main">
+        <AuthMobileBrand />
         <motion.div
           className="auth-card"
           initial={{ opacity: 0, y: 18 }}

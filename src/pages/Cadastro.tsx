@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, MailCheck, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "../components/ui";
-import { AuthAside } from "../components/AuthAside";
+import { AuthAside, AuthMobileBrand } from "../components/AuthAside";
 import { isValidEmail } from "../lib/utils";
 import { signUp } from "../lib/auth";
 
@@ -54,6 +54,7 @@ export default function Cadastro() {
       <AuthAside />
 
       <section className="auth-main">
+        <AuthMobileBrand />
         <motion.div
           className="auth-card"
           initial={{ opacity: 0, y: 18 }}
