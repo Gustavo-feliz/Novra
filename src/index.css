@@ -134,6 +134,11 @@
   .bar { height: 7px; border-radius: 20px; background: var(--surface2); overflow: hidden; }
   .bar i { display: block; height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--sage), var(--sage-strong)); }
 
+  .install-steps { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0 0 0 4px; list-style: none; counter-reset: step; }
+  .install-steps li { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; line-height: 1.5; color: var(--text); counter-increment: step; }
+  .install-steps li::before { content: counter(step); flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--sage-soft); color: var(--sage-strong); font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
+  .install-steps li svg { flex-shrink: 0; margin-top: 1px; color: var(--faint); }
+
   .banner { display: flex; gap: 11px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; font-size: 13px; }
   .banner.warn { background: rgb(var(--c-amber) / .1); border: 1px solid rgb(var(--c-amber) / .25); color: var(--amber); }
   .banner.ok { background: var(--sage-soft); border: 1px solid var(--glass-brd); color: var(--sage-strong); }
@@ -563,7 +568,7 @@
   .portal-hero-stat { width: 92px; height: 92px; border-radius: 16px; flex-shrink: 0; }
   .portal-hero-stat strong { font-size: 23px; }
   .portal-grid.two, .portal-grid.three, .portal-diary-grid, .portal-achv-grid { grid-template-columns: 1fr; }
-  .notif-panel { width: min(92vw, 338px); right: -8px; }
+  .notif-panel { position: fixed; left: 50%; right: auto; top: 64px; width: min(92vw, 338px); margin-left: calc(min(92vw, 338px) / -2); }
   .portal-bottom-nav { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--glass); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-top: 1px solid var(--glass-brd); padding-bottom: env(safe-area-inset-bottom); }
   .portal-bottom-item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; color: var(--faint); text-decoration: none; font-size: 10px; font-weight: 600; }
   .portal-bottom-item.active { color: var(--sage-strong); }
