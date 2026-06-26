@@ -5,6 +5,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { getRole, isAuthenticated, isAuthReady, onAuthChange, waitForAuth } from "./lib/auth";
 import { PORTAL_ACCESS } from "./lib/mock";
 import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
@@ -64,6 +65,7 @@ export default function App() {
       {!isPortal && <CommandPalette />}
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/cadastro" element={<Cadastro />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route element={<RequireClinic><Shell /></RequireClinic>}>
           <Route path="/" element={<Dashboard />} />

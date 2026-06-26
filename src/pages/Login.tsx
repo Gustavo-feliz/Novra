@@ -1,44 +1,57 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   Eye,
   EyeOff,
-  Info,
   Lock,
   Mail,
-  Salad,
+  MailCheck,
   ShieldAlert,
-  Stethoscope,
-  UserRound,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "../components/ui";
+import { AuthAside } from "../components/AuthAside";
 import { PORTAL_ACCESS } from "../lib/mock";
 import { isValidEmail } from "../lib/utils";
-import { clearFailedAttempts, getLockRemaining, getRole, LOCK_MS, login, recordFailedAttempt, type Role } from "../lib/auth";
+import {
+  clearFailedAttempts,
+  getLockRemaining,
+  getRole,
+  LOCK_MS,
+  login,
+  recordFailedAttempt,
+  resetPassword,
+  signInWithGoogle,
+} from "../lib/auth";
 
-const DEMO: Record<Role, { email: string; password: string; target: string }> = {
-  nutritionist: { email: "nutri123@gmail.com", password: "nutri123", target: "/" },
-  patient: { email: "mariana@gmail.com", password: "teste123", target: `/portal/${PORTAL_ACCESS.slug}` },
-};
+const DEMO = { email: "nutri123@gmail.com", password: "nutri123" };
 
-const ROLE_TABS: { id: Role; label: string; icon: typeof Stethoscope }[] = [
-  { id: "nutritionist", label: "Nutricionista", icon: Stethoscope },
-  { id: "patient", label: "Paciente", icon: UserRound },
-];
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
+      <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" />
+    </svg>
+  );
+}
 
 export default function Login() {
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const [role, setRole] = useState<Role>("nutritionist");
+  const [mode, setMode] = useState<"login" | "reset">("login");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [show, setShow] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
   const [lockMs, setLockMs] = useState(getLockRemaining);
 
@@ -55,42 +68,31 @@ export default function Login() {
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [locked]);
 
-  function selectRole(next: Role) {
-    setRole(next);
-    setError("");
+  function trackCaps(e: KeyboardEvent<HTMLInputElement>) {
+    setCapsLock(e.getModifierState("CapsLock"));
   }
 
   function fillDemo() {
-    setEmail(DEMO[role].email);
-    setSenha(DEMO[role].password);
+    setEmail(DEMO.email);
+    setSenha(DEMO.password);
     setError("");
-  }
-
-  function trackCaps(e: KeyboardEvent<HTMLInputElement>) {
-    setCapsLock(e.getModifierState("CapsLock"));
   }
 
   async function submit() {
     if (locked || loading) return;
     const cleanEmail = email.trim().toLowerCase();
-    if (!isValidEmail(cleanEmail)) {
-      setError("Digite um e-mail valido.");
-      return;
-    }
-    if (!senha) {
-      setError("Digite sua senha.");
-      return;
-    }
+    if (!isValidEmail(cleanEmail)) { setError("Digite um e-mail válido."); return; }
+    if (!senha) { setError("Digite sua senha."); return; }
 
     setLoading(true);
     try {
       await login(cleanEmail, senha);
       clearFailedAttempts();
       const loggedRole = getRole();
-      const target = loggedRole === "patient" ? `/portal/${PORTAL_ACCESS.slug}` : "/";
       const next = params.get("next");
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
-      nav(loggedRole === "patient" ? target : (safeNext ?? target), { replace: true });
+      const target = loggedRole === "patient" ? `/portal/${PORTAL_ACCESS.slug}` : (safeNext ?? "/");
+      nav(target, { replace: true });
     } catch {
       const left = recordFailedAttempt();
       if (left <= 0) {
@@ -104,194 +106,185 @@ export default function Login() {
     }
   }
 
+  async function sendReset() {
+    if (loading) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!isValidEmail(cleanEmail)) { setError("Digite o e-mail da sua conta."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      await resetPassword(cleanEmail);
+      setResetSent(true);
+    } catch {
+      setError("Não foi possível enviar o link agora. Tente de novo.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function google() {
+    if (googleLoading) return;
+    setGoogleLoading(true);
+    setError("");
+    try {
+      await signInWithGoogle();
+    } catch {
+      setError("Login com Google indisponível no momento.");
+      setGoogleLoading(false);
+    }
+  }
+
+  function openReset() {
+    setMode("reset");
+    setResetSent(false);
+    setError("");
+  }
+
+  function backToLogin() {
+    setMode("login");
+    setResetSent(false);
+    setError("");
+  }
+
   return (
-    <main className="site-login">
-      <div className="site-login-top">
-        <div className="site-login-brand"><div className="brand-mark"><Salad size={16} /></div><span>Novra</span></div>
-      </div>
+    <main className="auth">
+      <AuthAside />
 
-      <motion.section
-        className="site-login-shell"
-        initial={{ opacity: 0, y: 22, scale: .98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: .5, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <section className="site-login-formpane">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: .4, delay: .05 }}
-          >
-            <div className="seg site-login-roles">
-              {ROLE_TABS.map(({ id, label, icon: Icon }) => (
-                <button key={id} type="button" className={id === role ? "on" : undefined} onClick={() => selectRole(id)}>
-                  <Icon size={14} />{label}
-                </button>
-              ))}
-            </div>
+      <section className="auth-main">
+        <motion.div
+          className="auth-card"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: .5, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {mode === "login" ? (
+              <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
+                <h2 className="auth-title">Bem-vinda de volta! <span className="auth-wave">👋</span></h2>
+                <p className="auth-sub">Acesse sua conta e continue transformando vidas.</p>
 
-            <div className="site-login-eyebrow">Caderno de nutrição clínica</div>
-            <div className="site-login-copy">
-              <h1>Sua agenda,<br />em ordem.</h1>
-              <p>Pacientes, consultas e planos alimentares no mesmo lugar onde você já trabalha.</p>
-            </div>
-          </motion.div>
+                <div className="auth-form">
+                  <label className="auth-field">
+                    <span>E-mail</span>
+                    <div>
+                      <Mail size={18} />
+                      <input
+                        value={email}
+                        onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                        type="email" placeholder="seu@email.com" autoComplete="email" inputMode="email" disabled={locked}
+                      />
+                    </div>
+                  </label>
 
-          <motion.div
-            className="site-login-form"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: .4, delay: .12 }}
-          >
-            <label className="site-login-field">
-              <span>E-mail</span>
-              <div>
-                <Mail size={18} />
-                <input
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                  type="email"
-                  placeholder="seu@email.com"
-                  autoComplete="email"
-                  inputMode="email"
-                  disabled={locked}
-                />
-              </div>
-            </label>
+                  <label className="auth-field">
+                    <span>Senha</span>
+                    <div>
+                      <Lock size={18} />
+                      <input
+                        value={senha}
+                        onChange={(e) => { setSenha(e.target.value); setError(""); }}
+                        onKeyUp={trackCaps}
+                        onKeyDown={(e) => { trackCaps(e); if (e.key === "Enter") submit(); }}
+                        type={show ? "text" : "password"} placeholder="Sua senha" autoComplete="current-password" disabled={locked}
+                      />
+                      <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Ocultar senha" : "Mostrar senha"}>
+                        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    {capsLock && <small className="auth-caps"><AlertTriangle size={12} />Caps Lock está ativado</small>}
+                  </label>
 
-            <label className="site-login-field">
-              <span>Senha</span>
-              <div>
-                <Lock size={18} />
-                <input
-                  value={senha}
-                  onChange={(e) => { setSenha(e.target.value); setError(""); }}
-                  onKeyUp={trackCaps}
-                  onKeyDown={(e) => { trackCaps(e); if (e.key === "Enter") submit(); }}
-                  type={show ? "text" : "password"}
-                  placeholder="Sua senha"
-                  autoComplete="current-password"
-                  disabled={locked}
-                />
-                <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Ocultar senha" : "Mostrar senha"}>
-                  {show ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {capsLock && <small className="site-login-caps"><AlertTriangle size={12} />Caps Lock esta ativado</small>}
-            </label>
+                  <button type="button" className="auth-forgot" onClick={openReset}>Esqueceu sua senha?</button>
 
-            <div className="site-login-options">
-              <label>
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                <span>Manter sessão ativa neste dispositivo</span>
-              </label>
-            </div>
+                  <AnimatePresence>
+                    {(locked || error) && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                        className="banner alert auth-banner"
+                      >
+                        {locked
+                          ? <><ShieldAlert size={15} /><span>Acesso bloqueado. Tente em <strong className="num">{formatLock(lockMs)}</strong>.</span></>
+                          : error}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-            <AnimatePresence mode="wait">
-              {locked ? (
-                <motion.div
-                  key="locked"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="banner alert site-login-banner"
-                >
-                  <ShieldAlert size={15} />
-                  <span>Acesso bloqueado por seguranca. Tente de novo em <strong className="num">{formatLock(lockMs)}</strong>.</span>
-                </motion.div>
-              ) : error ? (
-                <motion.div
-                  key="error"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="banner alert site-login-banner"
-                >
-                  {error}
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
+                  <Button variant="primary" onClick={submit} className="auth-submit" disabled={loading || locked}>
+                    {locked ? "Bloqueado" : loading ? "Entrando..." : "Entrar na sua conta"}
+                    {!locked && !loading && <ArrowRight size={18} />}
+                  </Button>
 
-            <Button variant="primary" onClick={submit} className="site-login-submit" disabled={loading || locked}>
-              {locked ? "Bloqueado" : loading ? "Entrando..." : "Entrar no painel"} <span><ArrowRight size={17} /></span>
-            </Button>
+                  <div className="auth-sep"><span />ou continue com<span /></div>
 
-            <button className="site-login-demo" type="button" onClick={fillDemo}>
-              <Info size={14} />
-              <span>Usar conta de demonstração</span>
-            </button>
-          </motion.div>
+                  <button type="button" className="auth-google" onClick={google} disabled={googleLoading}>
+                    <GoogleIcon />{googleLoading ? "Conectando..." : "Entrar com Google"}
+                  </button>
 
-          <div className="site-login-foot">
-            <span>© 2026 Novra</span>
-          </div>
-        </section>
+                  <p className="auth-switch">
+                    Ainda não tem uma conta? <Link to="/cadastro">Criar conta <ArrowRight size={14} /></Link>
+                  </p>
 
-        <aside className="site-login-visual">
-          <div className="site-login-visual-top">
-            <span>Ficha do dia</span>
-            <time>{TODAY_LABEL}</time>
-          </div>
+                  <button type="button" className="auth-demo" onClick={fillDemo}>Usar conta de demonstração</button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="reset" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}>
+                {resetSent ? (
+                  <>
+                    <div className="auth-reset-ic"><MailCheck size={26} /></div>
+                    <h2 className="auth-title">Verifique seu e-mail</h2>
+                    <p className="auth-sub">Enviamos um link de recuperação para <strong>{email.trim().toLowerCase()}</strong>. Abra o link para criar uma nova senha.</p>
+                    <Button variant="primary" onClick={backToLogin} className="auth-submit" style={{ marginTop: 22 }}>
+                      <ArrowLeft size={18} />Voltar para o login
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className="auth-back" onClick={backToLogin}><ArrowLeft size={16} />Voltar</button>
+                    <h2 className="auth-title">Recuperar acesso</h2>
+                    <p className="auth-sub">Informe o e-mail da sua conta e enviaremos um link para redefinir a senha.</p>
 
-          <div className="site-login-figure" aria-hidden="true">
-            <svg viewBox="0 0 220 220" className="site-login-figure-svg">
-              <circle cx="110" cy="110" r="108" className="slf-ring" />
-              <path className="slf-coat" d="M70 214c-2-38 4-64 14-78-7-10-9-23-3-35 9-18 30-27 49-19 16 7 24 23 21 39 11 1 21 9 26 21 7 17 7 50 5 72-37 10-78 10-112 0Z" />
-              <path className="slf-collar" d="M88 100c7 9 16 14 22 14s15-5 22-14l-6 22c-5 4-11 6-16 6s-11-2-16-6Z" />
-              <circle className="slf-head" cx="110" cy="73" r="34" />
-              <path className="slf-hair" d="M76 70c-2-22 13-40 34-40s36 18 34 40c-3-3-8-6-14-6-3-9-12-15-20-15s-17 6-20 15c-6 0-11 3-14 6Z" />
-              <rect className="slf-stetho" x="100" y="118" width="20" height="34" rx="10" />
-              <circle className="slf-badge" cx="146" cy="150" r="13" />
-              <path className="slf-leaf" d="M140 150c0-9 7-16 16-16-1 9-7 15-16 16Z" />
-            </svg>
-            <div className="site-login-figure-tag">
-              <Stethoscope size={13} />
-              <span>Atendimento de hoje</span>
-            </div>
-          </div>
+                    <div className="auth-form">
+                      <label className="auth-field">
+                        <span>E-mail</span>
+                        <div>
+                          <Mail size={18} />
+                          <input
+                            value={email}
+                            onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") sendReset(); }}
+                            type="email" placeholder="seu@email.com" autoComplete="email" inputMode="email" autoFocus
+                          />
+                        </div>
+                      </label>
 
-          <div className="site-login-ledger">
-            <div className="site-login-ledger-row">
-              <span className="num">08:30</span>
-              <div>
-                <strong>Avaliação inicial</strong>
-                <small>Bioimpedância · Consultório</small>
-              </div>
-            </div>
-            <div className="site-login-ledger-row">
-              <span className="num">10:00</span>
-              <div>
-                <strong>Mariana Costa</strong>
-                <small>Retorno gestacional · Online</small>
-              </div>
-            </div>
-            <div className="site-login-ledger-row">
-              <span className="num">14:30</span>
-              <div>
-                <strong>Plano alimentar · revisão</strong>
-                <small>Reeducação alimentar · Presencial</small>
-              </div>
-            </div>
-            <div className="site-login-ledger-row faded">
-              <span className="num">16:00</span>
-              <div>
-                <strong>Retorno · acompanhamento</strong>
-                <small>Disponível</small>
-              </div>
-            </div>
-          </div>
+                      <AnimatePresence>
+                        {error && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="banner alert auth-banner">
+                            {error}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-          <div className="site-login-headline">
-            <h2>Cada consulta, cada plano, no lugar certo.</h2>
-            <p>Pensado para o ritmo de quem atende — não para um painel de métricas.</p>
-          </div>
-        </aside>
-      </motion.section>
+                      <Button variant="primary" onClick={sendReset} className="auth-submit" disabled={loading}>
+                        {loading ? "Enviando..." : "Enviar link de recuperação"}{!loading && <ArrowRight size={18} />}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        <footer className="auth-foot">
+          <span><ShieldCheck size={13} /> Seus dados estão protegidos com segurança de ponta a ponta.</span>
+          <span>© 2026 Novra. Todos os direitos reservados.</span>
+        </footer>
+      </section>
     </main>
   );
 }
-
-const TODAY_LABEL = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
 
 function formatLock(ms: number): string {
   return `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;

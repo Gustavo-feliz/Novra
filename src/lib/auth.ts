@@ -83,6 +83,35 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
+/** Cadastro de profissional (nutricionista). O profile com role 'admin' é criado
+ *  pelo trigger handle_new_user no banco a partir do metadata. Retorna se já há
+ *  sessão ativa (quando a confirmação de e-mail está desligada) ou não. */
+export async function signUp(name: string, email: string, password: string): Promise<{ session: boolean }> {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name, role: "admin" } },
+  });
+  if (error) throw error;
+  if (data.session) await syncFromSession(data.session);
+  return { session: !!data.session };
+}
+
+/** Envia o e-mail de recuperação de senha (link mágico do Supabase). */
+export async function resetPassword(email: string) {
+  const redirectTo = hasWindow ? `${window.location.origin}/login` : undefined;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) throw error;
+}
+
+/** Login social via Google (OAuth). Requer o provedor Google ativado no painel
+ *  do Supabase. Redireciona o navegador para o fluxo de consentimento. */
+export async function signInWithGoogle() {
+  const redirectTo = hasWindow ? window.location.origin : undefined;
+  const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+  if (error) throw error;
+}
+
 /* ------------------------- bloqueio por brute-force ------------------------ */
 
 function readAttempts(): Attempts {
