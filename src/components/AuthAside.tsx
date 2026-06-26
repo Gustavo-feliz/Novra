@@ -26,7 +26,22 @@ export function NovraMark() {
 
 export function AuthMobileBrand() {
   return (
-    <Link to="/login" className="auth-logo auth-logo-mobile"><NovraMark /><span>novra</span></Link>
+    <div className="auth-logo-mobile-wrap">
+      <Link to="/login" className="auth-logo-tile" aria-label="Novra">
+        <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
+          <path d="M9 31V9l16.5 16.2c.4.4 1.1.1 1.1-.5V9" stroke="url(#novra-gm)" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M27 13c3.8 1 6.4 4.3 6.4 8.3 0 .9-.1 1.7-.4 2.5-2-1-4.4-3.2-5.4-6.2-.4-1.4-.6-3-.6-4.6Z" fill="url(#novra-gm)" />
+          <defs>
+            <linearGradient id="novra-gm" x1="9" y1="9" x2="34" y2="33" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#bdf0c9" />
+              <stop offset="1" stopColor="#5fc187" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </Link>
+      <span className="auth-logo-mobile-word">novra</span>
+      <small className="auth-logo-mobile-tag">Organize. Acompanhe. Transforme.</small>
+    </div>
   );
 }
 
