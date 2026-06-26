@@ -12,7 +12,7 @@ create policy allowed_admins_admin_all on allowed_admins for all using (is_admin
 
 -- Seu e-mail já liberado. Para autorizar outras pessoas depois, basta:
 -- insert into allowed_admins (email) values ('outro@email.com');
-insert into allowed_admins (email) values ('ti@grupoveroneze.com');
+insert into allowed_admins (email) values ('gu.luz.oliveira@gmail.com');
 
 create or replace function handle_new_user()
 returns trigger
