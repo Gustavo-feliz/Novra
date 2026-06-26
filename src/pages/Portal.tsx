@@ -367,6 +367,7 @@ function PortalHome({ patientName }: { patientName: string }) {
   const [goals] = usePersistentState(LOCAL_KEYS.portalGoals, PORTAL_GOALS);
   const [finance] = usePersistentState(LOCAL_KEYS.portalFinance, PORTAL_FINANCE);
   const [planos] = usePersistentState<Record<string, PatientPlan>>(LOCAL_KEYS.planosAlimentares, PLANOS_SEED);
+  const [reminders] = usePersistentState<ReminderPrefs>(LOCAL_KEYS.reminders, DEFAULT_REMINDERS);
   const plan = planos[PORTAL_ACCESS.patientId] ?? PLANOS_SEED[PORTAL_ACCESS.patientId];
   const { streak } = useStreak(PORTAL_ACCESS.patientId);
   const pending = questionnaires.filter((q) => q.status === "pendente").length;
@@ -391,6 +392,14 @@ function PortalHome({ patientName }: { patientName: string }) {
         <article className="portal-streak" onClick={() => navigate("metas")}>
           <Flame size={22} />
           <div><strong>{streak.dias} dia{streak.dias > 1 ? "s" : ""} seguido{streak.dias > 1 ? "s" : ""}</strong><span>batendo a meta de hidratação 🔥</span></div>
+          <ChevronRight size={17} />
+        </article>
+      )}
+
+      {!reminders.enabled && notificationPermission() !== "unsupported" && (
+        <article className="card pad portal-action" onClick={() => navigate("metas")}>
+          <Bell size={19} />
+          <div><strong>Ative lembretes no celular</strong><span>Avisos de hidratação e horário das refeições</span></div>
           <ChevronRight size={17} />
         </article>
       )}
@@ -709,9 +718,12 @@ function PortalGoals() {
 function PortalAgenda() {
   const toast = useToast();
   const [hour, setHour] = useState("");
+  const [requesting, setRequesting] = useState(false);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
 
   function requestAppointment() {
+    if (requesting || !hour) return;
+    setRequesting(true);
     const request: AppointmentRequest = {
       id: uid(),
       patientId: PORTAL_ACCESS.patientId,
@@ -732,6 +744,7 @@ function PortalAgenda() {
       patientId: PORTAL_ACCESS.patientId,
       clinicLink: "/agenda",
     });
+    setRequesting(false);
   }
 
   return (
@@ -749,7 +762,7 @@ function PortalAgenda() {
             return <button key={h} disabled={disabled} className={cx("btn", hour === h ? "primary" : "ghost", "sm")} onClick={() => setHour(h)}>{h}</button>;
           })}
         </div>
-        <Button variant="primary" disabled={!hour} onClick={requestAppointment}>Solicitar horario</Button>
+        <Button variant="primary" disabled={!hour || requesting} onClick={requestAppointment}>{requesting ? "Enviando..." : "Solicitar horario"}</Button>
       </section>
       {requests.length > 0 && (
         <section className="card pad">
@@ -889,6 +902,9 @@ function PortalInstructions() {
 
 function PortalVideoCall() {
   const toast = useToast();
+  const callAt = new Date(2026, 6, 10, 14, 30);
+  const minsToCall = (callAt.getTime() - Date.now()) / 60000;
+  const available = minsToCall <= 10 && minsToCall > -60;
   return (
     <div className="portal-page">
       <PageHead title="Videochamada" sub="Entre na sala quando sua consulta online estiver ativa." />
@@ -896,7 +912,11 @@ function PortalVideoCall() {
         <div className="portal-video-icon"><Video size={28} /></div>
         <h2>Sala de retorno</h2>
         <p>10/07/2026 · 14:30 · Vanessa da Luz</p>
-        <Button variant="primary" onClick={() => toast("Entrando na sala de video")}><Play size={15} />Entrar na sala</Button>
+        {available ? (
+          <Button variant="primary" onClick={() => toast("Entrando na sala de video")}><Play size={15} />Entrar na sala</Button>
+        ) : (
+          <span className="portal-video-wait">A sala abre 10 min antes do horário da consulta.</span>
+        )}
       </section>
     </div>
   );
