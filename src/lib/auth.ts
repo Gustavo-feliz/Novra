@@ -97,6 +97,28 @@ export async function signUp(name: string, email: string, password: string): Pro
   return { session: !!data.session };
 }
 
+/** Autocadastro do paciente, feito a partir do link de convite enviado pelo
+ *  profissional. O profile com role 'patient' e o registro em patients são
+ *  criados juntos pelo trigger handle_new_user a partir do metadata aqui. */
+export async function signUpPatient(data: { name: string; email: string; password: string; telefone?: string; dataNascimento?: string; sexo?: string }): Promise<{ session: boolean }> {
+  const { data: res, error } = await supabase.auth.signUp({
+    email: data.email,
+    password: data.password,
+    options: {
+      data: {
+        name: data.name,
+        role: "patient",
+        telefone: data.telefone,
+        data_nascimento: data.dataNascimento,
+        sexo: data.sexo,
+      },
+    },
+  });
+  if (error) throw error;
+  if (res.session) await syncFromSession(res.session);
+  return { session: !!res.session };
+}
+
 /** Envia o e-mail de recuperação de senha (link mágico do Supabase). */
 export async function resetPassword(email: string) {
   const redirectTo = hasWindow ? `${window.location.origin}/login` : undefined;

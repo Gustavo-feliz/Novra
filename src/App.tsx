@@ -6,6 +6,7 @@ import { getRole, isAuthenticated, isAuthReady, onAuthChange, waitForAuth } from
 import { PORTAL_ACCESS } from "./lib/mock";
 import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
+import Convite from "./pages/Convite";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
@@ -66,6 +67,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
+        <Route path="/convite" element={<Convite />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route element={<RequireClinic><Shell /></RequireClinic>}>
           <Route path="/" element={<Dashboard />} />

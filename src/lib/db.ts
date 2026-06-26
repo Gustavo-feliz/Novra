@@ -198,6 +198,26 @@ export async function updateFinance(id: string, patch: Partial<Pick<FinanceTx, "
   return rowToFinance(data);
 }
 
+export async function createFinance(tx: Omit<FinanceTx, "id">, createdBy: string): Promise<FinanceTx> {
+  const [dd, mm, yyyy] = tx.data.split("/");
+  const { data, error } = await supabase
+    .from("finance_tx")
+    .insert({
+      data: `${yyyy}-${mm}-${dd}`,
+      patient_id: tx.pacienteId,
+      paciente: tx.paciente,
+      descricao: tx.desc,
+      valor: tx.valor,
+      forma: tx.forma,
+      status: tx.status,
+      created_by: createdBy,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return rowToFinance(data);
+}
+
 /* --------------------------------- plans ---------------------------------- */
 
 function rowToPlan(r: any): PatientPlan {

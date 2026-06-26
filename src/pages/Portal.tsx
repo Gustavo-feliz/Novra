@@ -57,6 +57,7 @@ import { LOCAL_KEYS, type AppointmentRequest, usePersistentState } from "../lib/
 import { pushEvent } from "../lib/events";
 import { ACHIEVEMENTS, computeUnlocked, useAchievements, useStreak } from "../lib/engagement";
 import { NotificationBell } from "../components/NotificationBell";
+import { InstallAppButton } from "../components/InstallAppButton";
 import { brl, cx, initials, logout, sanitizeText, uid } from "../lib/utils";
 import { getPortalSlug, getRole, unlockPortal } from "../lib/auth";
 import {
@@ -276,6 +277,7 @@ export default function Portal() {
             <small>{CLINIC.nutri}</small>
           </div>
         </div>
+        <InstallAppButton sm />
         <NotificationBell audience="paciente" patientId={PORTAL_ACCESS.patientId} linkKey="portalLink"
           onNavigate={(path) => navigate(`/portal/${PORTAL_ACCESS.slug}/${path}`)} />
         <button className="iconbtn hide-sm" onClick={() => logout(navigate)} title="Sair"><LogOut size={16} /></button>

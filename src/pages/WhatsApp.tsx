@@ -18,7 +18,7 @@ function preview(t: string) {
     .replace(/{clinica}/g, CLINIC.nome)
     .replace(/{data}/g, "18/06")
     .replace(/{hora}/g, "14:00")
-    .replace(/{link}/g, "nutriflow.app/sala/bn");
+    .replace(/{link}/g, "novra.app/sala/bn");
 }
 
 export default function WhatsApp() {

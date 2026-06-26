@@ -2,16 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from "recharts";
-import { Eye, EyeOff, Download, TrendingUp, Receipt } from "lucide-react";
-import { Card, Button, Chip, Segmented, IconButton } from "../components/ui";
+import { Eye, EyeOff, Download, TrendingUp, Receipt, Plus } from "lucide-react";
+import { Card, Button, Chip, Segmented, IconButton, Modal, Field, Input, Select } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { FINANCE_MONTHLY, FINANCE_FORMAS } from "../lib/mock";
 import { brl, cx } from "../lib/utils";
-import { listFinance, updateFinance } from "../lib/db";
-import type { FinanceTx } from "../lib/types";
+import { listFinance, updateFinance, createFinance, listPatients } from "../lib/db";
+import { getUserId } from "../lib/auth";
+import type { FinanceTx, Patient } from "../lib/types";
 
 type Period = "mes" | "trimestre" | "ano";
 const STATUS_CHIP: Record<string, string> = { Pago: "sage", Pendente: "amber", Atrasado: "red" };
+const FORMAS: FinanceTx["forma"][] = ["Pix", "Cartão", "Dinheiro", "Transferência"];
+const STATUSES: FinanceTx["status"][] = ["Pendente", "Pago", "Atrasado"];
+
+function hojeBr() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
 
 export default function Financial() {
   const nav = useNavigate();
@@ -19,9 +27,42 @@ export default function Financial() {
   const [mask, setMask] = useState(false);
   const [period, setPeriod] = useState<Period>("mes");
   const [txs, setTxs] = useState<FinanceTx[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [novo, setNovo] = useState(false);
+  const FORM_VAZIO = { pacienteId: "", desc: "", valor: "", forma: "Pix" as FinanceTx["forma"], status: "Pendente" as FinanceTx["status"], data: hojeBr() };
+  const [form, setForm] = useState(FORM_VAZIO);
   const m = (v: string) => (mask ? "••••" : v);
 
   useEffect(() => { listFinance().then(setTxs).catch(() => toast("Erro ao carregar financeiro")); }, []);
+  useEffect(() => { listPatients().then(setPatients).catch(() => {}); }, []);
+
+  const resetForm = () => setForm(FORM_VAZIO);
+  const fecharModal = () => { setNovo(false); resetForm(); };
+  const podeCriar = !!(form.pacienteId && form.desc.trim() && Number(form.valor) > 0);
+
+  const criarMovimentacao = async () => {
+    if (!podeCriar) return;
+    const userId = getUserId();
+    if (!userId) return;
+    const paciente = patients.find((p) => p.id === form.pacienteId);
+    if (!paciente) return;
+    try {
+      const saved = await createFinance({
+        data: form.data,
+        paciente: paciente.nome,
+        pacienteId: paciente.id,
+        desc: form.desc.trim(),
+        valor: Number(form.valor),
+        forma: form.forma,
+        status: form.status,
+      }, userId);
+      setTxs([saved, ...txs]);
+      toast("Movimentação lançada");
+      fecharModal();
+    } catch {
+      toast("Erro ao lançar movimentação");
+    }
+  };
 
   const marcarPago = async (tx: FinanceTx) => {
     try {
@@ -53,6 +94,7 @@ export default function Financial() {
           <Segmented<Period> value={period} onChange={setPeriod} options={[{ value: "mes", label: "Mês" }, { value: "trimestre", label: "Trimestre" }, { value: "ano", label: "Ano" }]} />
           <IconButton onClick={() => setMask(!mask)} title="Ocultar valores">{mask ? <EyeOff size={16} /> : <Eye size={16} />}</IconButton>
           <Button variant="ghost" onClick={() => toast("Relatório exportado em CSV")}><Download size={15} />Exportar</Button>
+          <Button variant="primary" onClick={() => setNovo(true)}><Plus size={15} />Nova movimentação</Button>
         </div>
       </div>
 
@@ -138,6 +180,50 @@ export default function Financial() {
           </table>
         </div>
       </Card>
+
+      {novo && (
+        <Modal title="Nova movimentação" sub="Lance uma receita manualmente" onClose={fecharModal} max={480}
+          footer={<>
+            <Button variant="ghost" onClick={fecharModal}>Cancelar</Button>
+            <Button variant="primary" disabled={!podeCriar} onClick={criarMovimentacao}>Lançar</Button>
+          </>}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Field label="Paciente *">
+              <Select value={form.pacienteId} onChange={(e) => setForm({ ...form, pacienteId: e.target.value })}>
+                <option value="">Selecione um paciente</option>
+                {patients.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </Select>
+            </Field>
+            <Field label="Descrição *">
+              <Input value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} placeholder="Ex: Consulta de retorno" />
+            </Field>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="Valor (R$) *">
+                <Input className="num" type="number" min="0" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} placeholder="0,00" />
+              </Field>
+              <Field label="Data">
+                <Input className="num" type="date" value={form.data.split("/").reverse().join("-")}
+                  onChange={(e) => {
+                    const [y, mo, d] = e.target.value.split("-");
+                    setForm({ ...form, data: `${d}/${mo}/${y}` });
+                  }} />
+              </Field>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <Field label="Forma de pagamento">
+                <Select value={form.forma} onChange={(e) => setForm({ ...form, forma: e.target.value as FinanceTx["forma"] })}>
+                  {FORMAS.map((f) => <option key={f} value={f}>{f}</option>)}
+                </Select>
+              </Field>
+              <Field label="Status">
+                <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as FinanceTx["status"] })}>
+                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </Field>
+            </div>
+          </div>
+        </Modal>
+      )}
     </motion.div>
   );
 }

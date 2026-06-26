@@ -19,7 +19,7 @@ export default function BookingLink() {
   const [svc, setSvc] = useState(1);
   const [dia, setDia] = useState(2);
   const [hora, setHora] = useState<string | null>(null);
-  const url = `nutriflow.app/${slug}`;
+  const url = `novra.app/${slug}`;
 
   const copy = () => { setCopied(true); toast("Link copiado"); setTimeout(() => setCopied(false), 1600); };
 

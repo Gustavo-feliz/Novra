@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Salad, Upload, Check, UserPlus, Crown } from "lucide-react";
+import { Salad, Upload, Check, UserPlus, Crown, Link2, Copy } from "lucide-react";
 import { Card, Button, Segmented, Field, Input, Chip, Avatar } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { CLINIC } from "../lib/mock";
 import { cx } from "../lib/utils";
 
+const INVITE_URL = "novra.app/convite";
+
 const SWATCHES = ["78 110 87", "188 98 66", "62 124 140", "120 86 140", "183 137 47", "60 86 69"];
 const TEAM = [
-  { nome: "Vanessa da Luz", papel: "Administradora", email: "vanessa@nutriflow.com.br", inic: "VL" },
-  { nome: "Camila Restani", papel: "Nutricionista", email: "camila@nutriflow.com.br", inic: "CR" },
+  { nome: "Vanessa da Luz", papel: "Administradora", email: "vanessa@novra.app", inic: "VL" },
+  { nome: "Camila Restani", papel: "Nutricionista", email: "camila@novra.app", inic: "CR" },
 ];
 const PLANS = [
   { nome: "Trial", preco: "Grátis", desc: "14 dias · todas as funções", atual: false },
@@ -22,11 +24,32 @@ export default function Settings() {
   const [tab, setTab] = useState<"marca" | "equipe" | "assinatura">("marca");
   const [cor, setCor] = useState(SWATCHES[0]);
   const [nome, setNome] = useState(CLINIC.nome);
+  const [copied, setCopied] = useState(false);
+
+  const copyInvite = () => {
+    navigator.clipboard?.writeText(`https://${INVITE_URL}`);
+    setCopied(true);
+    toast("Link de cadastro copiado");
+    setTimeout(() => setCopied(false), 1600);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
       <div className="h1" style={{ marginBottom: 4 }}>Configurações</div>
       <div className="muted" style={{ fontSize: 13, marginBottom: 18 }}>Marca, equipe e assinatura da clínica.</div>
+
+      <Card pad style={{ marginBottom: 18 }}>
+        <span className="eyebrow">Convite de cadastro do paciente</span>
+        <div className="faint" style={{ fontSize: 12, marginTop: 4, marginBottom: 12 }}>Envie esse link para o paciente (WhatsApp, e-mail etc). Ele se cadastra com os próprios dados e já entra direto no portal dele.</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 10, padding: "0 12px", height: 38 }}>
+            <Link2 size={15} className="faint" />
+            <span className="num" style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{INVITE_URL}</span>
+          </div>
+          <Button variant="primary" onClick={copyInvite}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Copiado" : "Copiar"}</Button>
+        </div>
+      </Card>
+
       <Segmented value={tab} onChange={setTab} options={[{ value: "marca", label: "Marca" }, { value: "equipe", label: "Equipe" }, { value: "assinatura", label: "Assinatura" }]} style={{ marginBottom: 18 }} />
 
       {tab === "marca" && (

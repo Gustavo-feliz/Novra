@@ -8,6 +8,7 @@ import {
 import { ThemeToggle } from "./ThemeToggle";
 import { Avatar } from "./ui/Avatar";
 import { NotificationBell } from "./NotificationBell";
+import { InstallAppButton } from "./InstallAppButton";
 import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
 import { cx, logout } from "../lib/utils";
 import { CLINIC, DIARIES } from "../lib/mock";
@@ -79,6 +80,7 @@ export function Shell() {
         <button className="kbd-btn hide-sm" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}>
           <Search size={14} /> Buscar <span className="kbd">⌘K</span>
         </button>
+        <InstallAppButton sm />
         <NotificationBell audience="clinica" linkKey="clinicLink" onNavigate={nav} />
         <ThemeToggle />
         <button onClick={() => nav("/settings")} style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }} title="Configurações">
