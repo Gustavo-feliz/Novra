@@ -233,6 +233,23 @@ export default function Login() {
             <time>{TODAY_LABEL}</time>
           </div>
 
+          <div className="site-login-figure" aria-hidden="true">
+            <svg viewBox="0 0 220 220" className="site-login-figure-svg">
+              <circle cx="110" cy="110" r="108" className="slf-ring" />
+              <path className="slf-coat" d="M70 214c-2-38 4-64 14-78-7-10-9-23-3-35 9-18 30-27 49-19 16 7 24 23 21 39 11 1 21 9 26 21 7 17 7 50 5 72-37 10-78 10-112 0Z" />
+              <path className="slf-collar" d="M88 100c7 9 16 14 22 14s15-5 22-14l-6 22c-5 4-11 6-16 6s-11-2-16-6Z" />
+              <circle className="slf-head" cx="110" cy="73" r="34" />
+              <path className="slf-hair" d="M76 70c-2-22 13-40 34-40s36 18 34 40c-3-3-8-6-14-6-3-9-12-15-20-15s-17 6-20 15c-6 0-11 3-14 6Z" />
+              <rect className="slf-stetho" x="100" y="118" width="20" height="34" rx="10" />
+              <circle className="slf-badge" cx="146" cy="150" r="13" />
+              <path className="slf-leaf" d="M140 150c0-9 7-16 16-16-1 9-7 15-16 16Z" />
+            </svg>
+            <div className="site-login-figure-tag">
+              <Stethoscope size={13} />
+              <span>Atendimento de hoje</span>
+            </div>
+          </div>
+
           <div className="site-login-ledger">
             <div className="site-login-ledger-row">
               <span className="num">08:30</span>
