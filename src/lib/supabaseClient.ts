@@ -1,7 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+// createClient lança erro síncrono se faltar URL/key — sem o placeholder, o app
+// inteiro fica em tela branca antes mesmo de mostrar o login (ex.: antes do
+// usuário configurar o .env com a própria conta Supabase, ver SUPABASE.md).
+const url = import.meta.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "placeholder-anon-key";
 
 export const supabase = createClient(url, anonKey);
 

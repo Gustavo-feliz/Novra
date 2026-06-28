@@ -625,3 +625,47 @@
   .portal-login-submit { height: 52px; border-radius: 14px; font-size: 15.5px; }
   .portal-login-help-toggle, .site-login-demo { font-size: 13px; }
 }
+
+/* ---- patient portal: mobile touch & density pass ---- */
+@media (max-width: 920px) {
+  /* respeita o notch/status bar (iOS/Android) sem empurrar o conteudo */
+  .portal-topbar { padding-top: env(safe-area-inset-top); height: calc(58px + env(safe-area-inset-top)); }
+  .portal-side-card { display: none; }
+
+  /* font-size 16px evita o zoom automatico do iOS Safari ao focar o campo */
+  .portal-main .input, .portal-main .select, .portal-main textarea.input { font-size: 16px; min-height: 46px; }
+  .portal-main textarea.input { height: auto; }
+  .portal-main .field span { font-size: 12.5px; }
+
+  /* alvos de toque >= 40px (recomendado ~44px) para dedo, nao mouse */
+  .portal-main .iconbtn { width: 40px; height: 40px; }
+  .portal-cup { width: 42px; height: 42px; border-radius: 11px; }
+  .portal-water-actions .iconbtn { width: 42px; height: 42px; }
+  .portal-water-actions .btn { min-height: 42px; }
+  .portal-slot-grid button { min-height: 44px; }
+  .portal-reminder-check { min-height: 28px; }
+  .toggle { width: 46px; height: 27px; }
+
+  /* grids mais densas: cards pequenos lado a lado em vez de empilhados */
+  .portal-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .portal-metric { padding: 13px 8px; }
+  .portal-metric strong { font-size: 19px; margin: 3px 0; }
+  .portal-metric span, .portal-metric small { font-size: 10.5px; }
+  .portal-diary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .portal-achv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+  /* bottom nav: rotulo mais legivel e area de toque maior */
+  .portal-bottom-nav { padding-top: 4px; }
+  .portal-bottom-item { min-height: 54px; gap: 4px; font-size: 10.5px; justify-content: center; }
+  .portal-main { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+  .portal-bottom-nav { padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+
+  .portal-upload-card .upload { padding: 20px 16px; }
+  .portal-hero { padding: 18px; }
+}
+
+@media (max-width: 400px) {
+  /* telas bem estreitas: volta para 2 colunas para nao espremer o texto */
+  .portal-grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .portal-diary-grid, .portal-achv-grid { grid-template-columns: 1fr; }
+}
