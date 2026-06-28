@@ -1,4 +1,38 @@
+# dependências
 node_modules
+
+# variáveis de ambiente / segredos — NUNCA versionar (.env.example fica)
 .env
-.env.local
+.env.*
+!.env.example
+
+# build / artefatos
+dist
+dist-ssr
+*.local
+
+# dados locais do backend (db.json, audit.log, etc.)
 server/data
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# cache / temporários
+.vite
+.cache
+.supabase
+supabase/.temp
+
+# sistema operacional / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
