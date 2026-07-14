@@ -3,8 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Mic, Video, MonitorUp, PhoneOff, Salad, Plus, FileText, Ruler } from "lucide-react";
 import { Button, Avatar, Chip, Segmented, Textarea } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { PATIENTS } from "../lib/mock";
+import { getAppointment } from "../lib/db";
 import { initials } from "../lib/utils";
+import type { Appointment } from "../lib/types";
 
 declare global {
   var JitsiMeetExternalAPI: any;
@@ -14,22 +15,26 @@ export default function Consultation() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
-  const p = PATIENTS.find((x) => x.id === id) ?? PATIENTS[0];
+  const [apt, setApt] = useState<Appointment | null>(null);
   const [tab, setTab] = useState<"notas" | "prontuario" | "dados">("notas");
   const [nota, setNota] = useState("");
   const [secs, setSecs] = useState(0);
   const jitsiRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<any>(null);
 
+  useEffect(() => {
+    if (!id) return;
+    getAppointment(id).then(setApt).catch(() => {});
+  }, [id]);
+
   useEffect(() => { const t = setInterval(() => setSecs((s) => s + 1), 1000); return () => clearInterval(t); }, []);
 
   useEffect(() => {
     if (!jitsiRef.current || !window.JitsiMeetExternalAPI) return;
-    
-    const roomName = `novra-consultation-${id}`;
-    const domain = "meet.jitsi.si";
+
+    const domain = "meet.jit.si";
     const options = {
-      roomName: roomName,
+      roomName: `novra-consultation-${id}`,
       width: "100%",
       height: "100%",
       parentNode: jitsiRef.current,
@@ -47,7 +52,7 @@ export default function Consultation() {
     };
 
     apiRef.current = new window.JitsiMeetExternalAPI(domain, options);
-    
+
     return () => {
       if (apiRef.current) {
         apiRef.current.dispose();
@@ -56,16 +61,26 @@ export default function Consultation() {
     };
   }, [id]);
 
+  const nomePaciente = apt?.paciente ?? "Paciente";
   const mmss = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+
+  const encerrar = () => {
+    if (apiRef.current) apiRef.current.dispose();
+    if (apt?.patientId) nav(`/patients/${apt.patientId}`);
+    else nav("/videochamada");
+  };
 
   return (
     <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <header className="topbar" style={{ position: "sticky", top: 0, zIndex: 30, height: 58, display: "flex", alignItems: "center", gap: 12, padding: "0 18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 600 }}><div className="brand-mark"><Salad size={15} /></div><span className="hide-sm">Consulta</span></div>
-        <div className="crumb hide-sm"><span>Atendimento</span><span className="sep">/</span><b>{p.nome}</b></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 600 }}>
+          <div className="brand-mark"><Salad size={15} /></div>
+          <span className="hide-sm">Consulta</span>
+        </div>
+        <div className="crumb hide-sm"><span>Atendimento</span><span className="sep">/</span><b>{nomePaciente}</b></div>
         <div style={{ flex: 1 }} />
         <Chip tone="red"><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--red)", display: "inline-block" }} />Ao vivo · <span className="num">{mmss}</span></Chip>
-        <Button variant="ghost" onClick={() => { if (apiRef.current) apiRef.current.dispose(); nav(`/patients/${p.id}`); }}>Encerrar e abrir perfil</Button>
+        <Button variant="ghost" onClick={encerrar}>Encerrar e abrir perfil</Button>
       </header>
 
       <div style={{ flex: 1, display: "flex", minWidth: 0 }} className="consult-grid">
@@ -74,6 +89,13 @@ export default function Consultation() {
         </div>
 
         <aside style={{ width: 380, borderLeft: "1px solid var(--border)", padding: 18, display: "flex", flexDirection: "column", minWidth: 0 }} className="consult-aside">
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <Avatar initials={initials(nomePaciente)} size={38} />
+            <div>
+              <div className="h3">{nomePaciente}</div>
+              {apt && <div className="faint" style={{ fontSize: 12 }}>{apt.tipo} · {apt.hora}</div>}
+            </div>
+          </div>
           <Segmented value={tab} onChange={setTab} full options={[{ value: "notas", label: "Anotações" }, { value: "prontuario", label: "Prontuário" }, { value: "dados", label: "Dados" }]} />
           <div style={{ marginTop: 16, flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             {tab === "notas" && (
@@ -92,7 +114,7 @@ export default function Consultation() {
             )}
             {tab === "dados" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {[["Peso atual", "75,3 kg"], ["IMC", "27,0"], ["% Gordura", "29,6%"], ["Objetivo", p.objetivo]].map(([l, v]) => (
+                {[["Peso atual", "75,3 kg"], ["IMC", "27,0"], ["% Gordura", "29,6%"], ["Objetivo", apt?.tipo ?? "—"]].map(([l, v]) => (
                   <div key={l} className="card pad" style={{ padding: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span className="muted" style={{ fontSize: 12.5 }}><Ruler size={13} style={{ verticalAlign: "middle", marginRight: 6 }} />{l}</span>
                     <span className="num" style={{ fontWeight: 600 }}>{v}</span>

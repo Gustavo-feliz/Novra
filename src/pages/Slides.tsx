@@ -4,9 +4,10 @@ import { Plus, Play, Pencil, Send, LayoutTemplate, ChevronLeft, ChevronRight, X,
 import { Card, Button, Chip, Field, Input, Modal } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { SLIDES, SLIDE_CATEGORIES } from "../lib/mock";
-import { LOCAL_KEYS, usePersistentState } from "../lib/localData";
+import { listSlides, createSlide, updateSlide, deleteSlide } from "../lib/db";
+import { getUserId } from "../lib/auth";
 import type { SlideContent, SlideTemplate } from "../lib/types";
-import { cx, uid } from "../lib/utils";
+import { cx } from "../lib/utils";
 
 const CATEGORIAS_FORM = SLIDE_CATEGORIES.filter((c) => c !== "Todas");
 const COLOR_PALETTE: [string, string][] = [
@@ -19,13 +20,27 @@ const FORM_VAZIO = { titulo: "", categoria: CATEGORIAS_FORM[0], cor: COLOR_PALET
 
 export default function Slides() {
   const toast = useToast();
-  const [slides, setSlides] = usePersistentState<SlideTemplate[]>(LOCAL_KEYS.slides, SLIDES);
+  const [slides, setSlides] = useState<SlideTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState("Todas");
   const [present, setPresent] = useState<SlideTemplate | null>(null);
   const [idx, setIdx] = useState(0);
   const [form, setForm] = useState(FORM_VAZIO);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const uid = getUserId();
+    if (!uid) { setLoading(false); return; }
+    listSlides().then((data) => {
+      if (data.length === 0) {
+        return Promise.all(SLIDES.map((s) => createSlide({ titulo: s.titulo, categoria: s.categoria, cor: s.cor, laminas: s.laminas }, uid)))
+          .then((saved) => setSlides(saved));
+      }
+      setSlides(data);
+    }).catch(() => toast("Erro ao carregar lâminas")).finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(() => slides.filter((s) => cat === "Todas" || s.categoria === cat), [slides, cat]);
 
@@ -51,11 +66,14 @@ export default function Slides() {
     setEditingId(s.id);
     setFormOpen(true);
   };
+
   const addLaminaForm = () => setForm({ ...form, laminas: [...form.laminas, { ...LAMINA_VAZIA }] });
   const removeLaminaForm = (i: number) => setForm({ ...form, laminas: form.laminas.length > 1 ? form.laminas.filter((_, x) => x !== i) : form.laminas });
   const updateLaminaForm = (i: number, patch: Partial<LaminaForm>) => setForm({ ...form, laminas: form.laminas.map((l, x) => x === i ? { ...l, ...patch } : l) });
 
-  const salvar = () => {
+  const salvar = async () => {
+    const uid = getUserId();
+    if (!uid || saving) return;
     const titulo = form.titulo.trim();
     const laminasValidas = form.laminas.filter((l) => l.titulo.trim());
     if (!titulo || laminasValidas.length === 0) return;
@@ -64,14 +82,33 @@ export default function Slides() {
       corpo: l.corpo.split("\n").map((x) => x.trim()).filter(Boolean),
       destaque: l.destaque.trim() || undefined,
     }));
-    if (editingId) {
-      setSlides(slides.map((s) => s.id === editingId ? { ...s, titulo, categoria: form.categoria, cor: form.cor, laminas } : s));
-      toast("Lâmina atualizada");
-    } else {
-      setSlides([{ id: uid(), titulo, categoria: form.categoria, cor: form.cor, laminas }, ...slides]);
-      toast("Lâmina criada");
+    setSaving(true);
+    try {
+      if (editingId) {
+        const updated = await updateSlide(editingId, { titulo, categoria: form.categoria, cor: form.cor, laminas });
+        setSlides(slides.map((s) => s.id === editingId ? updated : s));
+        toast("Lâmina atualizada");
+      } else {
+        const created = await createSlide({ titulo, categoria: form.categoria, cor: form.cor, laminas }, uid);
+        setSlides([created, ...slides]);
+        toast("Lâmina criada");
+      }
+      setFormOpen(false);
+    } catch {
+      toast("Erro ao salvar lâmina");
+    } finally {
+      setSaving(false);
     }
-    setFormOpen(false);
+  };
+
+  const remover = async (s: SlideTemplate) => {
+    try {
+      await deleteSlide(s.id);
+      setSlides(slides.filter((x) => x.id !== s.id));
+      toast("Lâmina removida");
+    } catch {
+      toast("Erro ao remover lâmina");
+    }
   };
 
   return (
@@ -90,28 +127,33 @@ export default function Slides() {
         ))}
       </div>
 
-      <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
-        {filtered.map((s) => (
-          <Card key={s.id} style={{ overflow: "hidden", cursor: "pointer" }} className="slide-card" onClick={() => open(s)}>
-            <div style={{ height: 148, background: `linear-gradient(150deg, ${s.cor[0]}, ${s.cor[1]})`, position: "relative", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,.22)", display: "grid", placeItems: "center", color: "#fff" }}><LayoutTemplate size={18} /></div>
-                <div style={{ background: "rgba(0,0,0,.3)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 20, backdropFilter: "blur(4px)", height: "fit-content" }} className="num">{s.laminas.length} lâminas</div>
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--faint)", fontSize: 13 }}><div className="spinner" />Carregando lâminas…</div>
+      ) : (
+        <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+          {filtered.map((s) => (
+            <Card key={s.id} style={{ overflow: "hidden", cursor: "pointer" }} className="slide-card" onClick={() => open(s)}>
+              <div style={{ height: 148, background: `linear-gradient(150deg, ${s.cor[0]}, ${s.cor[1]})`, position: "relative", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,.22)", display: "grid", placeItems: "center", color: "#fff" }}><LayoutTemplate size={18} /></div>
+                  <div style={{ background: "rgba(0,0,0,.3)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 20, backdropFilter: "blur(4px)", height: "fit-content" }} className="num">{s.laminas.length} lâminas</div>
+                </div>
+                <div style={{ color: "rgba(255,255,255,.92)", fontSize: 12.5, lineHeight: 1.4 }}>{s.laminas[0]?.titulo}</div>
               </div>
-              <div style={{ color: "rgba(255,255,255,.92)", fontSize: 12.5, lineHeight: 1.4 }}>{s.laminas[0]?.titulo}</div>
-            </div>
-            <div style={{ padding: 14 }}>
-              <div className="h3" style={{ lineHeight: 1.3 }}>{s.titulo}</div>
-              <Chip style={{ marginTop: 8 }}>{s.categoria}</Chip>
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <Button variant="primary" sm style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); open(s); }}><Play size={13} />Apresentar</Button>
-                <Button variant="ghost" sm onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Pencil size={13} /></Button>
-                <Button variant="subtle" sm onClick={(e) => { e.stopPropagation(); toast("Lâmina enviada ao paciente"); }}><Send size={13} /></Button>
+              <div style={{ padding: 14 }}>
+                <div className="h3" style={{ lineHeight: 1.3 }}>{s.titulo}</div>
+                <Chip style={{ marginTop: 8 }}>{s.categoria}</Chip>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <Button variant="primary" sm style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); open(s); }}><Play size={13} />Apresentar</Button>
+                  <Button variant="ghost" sm onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Pencil size={13} /></Button>
+                  <Button variant="subtle" sm onClick={(e) => { e.stopPropagation(); toast("Lâmina enviada ao paciente"); }}><Send size={13} /></Button>
+                  <Button variant="subtle" sm onClick={(e) => { e.stopPropagation(); remover(s); }}><Trash2 size={13} /></Button>
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {present && (() => {
         const slideAtual = present.laminas[idx];
@@ -159,7 +201,7 @@ export default function Slides() {
         <Modal title={editingId ? "Editar lâmina" : "Nova lâmina"} sub={editingId ? "Atualize os dados desse modelo" : "Crie um novo modelo de apresentação"} onClose={() => setFormOpen(false)} max={620}
           footer={<>
             <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
-            <Button variant="primary" disabled={!form.titulo.trim() || !form.laminas.some((l) => l.titulo.trim())} onClick={salvar}><Check size={15} />{editingId ? "Salvar alterações" : "Criar lâmina"}</Button>
+            <Button variant="primary" disabled={!form.titulo.trim() || !form.laminas.some((l) => l.titulo.trim()) || saving} onClick={salvar}><Check size={15} />{saving ? "Salvando…" : editingId ? "Salvar alterações" : "Criar lâmina"}</Button>
           </>}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Field label="Título do conjunto">

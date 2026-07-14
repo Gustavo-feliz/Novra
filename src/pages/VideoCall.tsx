@@ -1,11 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Video, Mic, Link2, Calendar, Settings2, ArrowRight } from "lucide-react";
 import { Card, Button, Avatar, Chip } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
-import { VIDEO_ROOMS } from "../lib/mock";
+import { listAppointments } from "../lib/db";
 import { initials, cx } from "../lib/utils";
+import type { Appointment } from "../lib/types";
+
+function roomStatus(apt: Appointment): "agora" | "proxima" | "agendada" {
+  const [hh, mm] = apt.hora.split(":").map(Number);
+  const now = new Date();
+  const aptMin = hh * 60 + mm;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const diff = aptMin - nowMin;
+  if (diff >= -15 && diff <= 30) return "agora";
+  if (apt.dia === now.getDate()) return "proxima";
+  return "agendada";
+}
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   agora: { label: "Disponível agora", tone: "sage" },
@@ -18,7 +30,17 @@ export default function VideoCall() {
   const toast = useToast();
   const [cam, setCam] = useState(true);
   const [mic, setMic] = useState(true);
-  const agora = VIDEO_ROOMS.find((r) => r.status === "agora");
+  const [rooms, setRooms] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    listAppointments()
+      .then((all) => setRooms(all.filter((a) => a.modo === "Online")))
+      .catch(() => toast("Não foi possível carregar as consultas"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const agora = rooms.find((r) => roomStatus(r) === "agora");
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
@@ -27,7 +49,11 @@ export default function VideoCall() {
           <div className="h1">Videochamada</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>Salas de consulta online seguras e integradas</div>
         </div>
-        <Button variant="ghost" onClick={() => toast("Link da sala copiado")}><Link2 size={15} />Copiar link da sala</Button>
+        <Button variant="ghost" onClick={() => {
+          const url = agora ? `https://meet.jit.si/novra-consultation-${agora.id}` : "";
+          if (url) { navigator.clipboard.writeText(url); toast("Link da sala copiado"); }
+          else toast("Nenhuma sala aberta no momento");
+        }}><Link2 size={15} />Copiar link da sala</Button>
       </div>
 
       <div className="gcol gcol-resp" style={{ gridTemplateColumns: "1.3fr 1fr", marginBottom: 18 }}>
@@ -37,7 +63,7 @@ export default function VideoCall() {
             {cam ? (
               <div style={{ textAlign: "center" }}>
                 <Avatar initials="VL" size={72} />
-                <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>Câmera ativa · Vanessa da Luz</div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>Câmera ativa · Você</div>
               </div>
             ) : (
               <div className="faint" style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}><Video size={16} />Câmera desligada</div>
@@ -51,11 +77,16 @@ export default function VideoCall() {
         </Card>
 
         <Card pad style={{ display: "flex", flexDirection: "column" }}>
-          {agora ? (
+          {loading ? (
+            <div style={{ margin: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              <div className="spinner" />
+              <span className="faint" style={{ fontSize: 13 }}>Carregando sala…</span>
+            </div>
+          ) : agora ? (
             <>
               <Chip tone="sage" style={{ alignSelf: "flex-start" }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--sage)", display: "inline-block" }} />Sala aberta</Chip>
               <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "16px 0" }}>
-                <Avatar initials={initials(agora.paciente)} size={52} gradient={agora.cor} />
+                <Avatar initials={initials(agora.paciente)} size={52} />
                 <div><div className="h2">{agora.paciente}</div><div className="muted" style={{ fontSize: 13 }}>{agora.tipo} · {agora.hora}</div></div>
               </div>
               <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>O paciente já pode entrar pelo link enviado. Suas anotações durante a chamada vão direto ao prontuário.</div>
@@ -65,29 +96,36 @@ export default function VideoCall() {
             <div style={{ textAlign: "center", margin: "auto 0" }}>
               <Calendar size={26} className="faint" />
               <div className="h3" style={{ marginTop: 10 }}>Nenhuma sala aberta agora</div>
+              <div className="faint" style={{ fontSize: 12.5, marginTop: 6 }}>Agende consultas online na Agenda</div>
             </div>
           )}
         </Card>
       </div>
 
       <div className="eyebrow" style={{ marginBottom: 11 }}>Consultas online</div>
-      <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-        {VIDEO_ROOMS.map((r) => {
-          const st = STATUS[r.status];
-          return (
-            <Card key={r.id + r.hora} pad style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <Avatar initials={initials(r.paciente)} size={42} gradient={r.cor} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="h3" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.paciente}</div>
-                <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{r.tipo} · {r.hora}</div>
-              </div>
-              {r.status === "agora"
-                ? <Button variant="primary" sm onClick={() => nav(`/consultation/${r.id}`)}>Entrar</Button>
-                : <Chip tone={st.tone as any}>{st.label}</Chip>}
-            </Card>
-          );
-        })}
-      </div>
+      {loading ? (
+        <div className="faint" style={{ fontSize: 13 }}>Carregando…</div>
+      ) : rooms.length === 0 ? (
+        <div className="faint" style={{ fontSize: 13 }}>Nenhuma consulta online agendada.</div>
+      ) : (
+        <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+          {rooms.map((r) => {
+            const st = STATUS[roomStatus(r)];
+            return (
+              <Card key={r.id} pad style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Avatar initials={initials(r.paciente)} size={42} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="h3" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.paciente}</div>
+                  <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{r.tipo} · {r.hora}</div>
+                </div>
+                {roomStatus(r) === "agora"
+                  ? <Button variant="primary" sm onClick={() => nav(`/consultation/${r.id}`)}>Entrar</Button>
+                  : <Chip tone={st.tone as any}>{st.label}</Chip>}
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </motion.div>
   );
 }

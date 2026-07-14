@@ -29,6 +29,22 @@ export interface Appointment {
   tipo: string;
   modo: "Online" | "Presencial";
   dia: number;
+  patientId?: string;
+}
+
+export interface BookingService {
+  nome: string;
+  dur: string;
+  modo: string;
+  preco: number;
+}
+
+export interface BookingConfig {
+  slug: string;
+  ativo: boolean;
+  confirmAuto: boolean;
+  servicos: BookingService[];
+  horarios: string[];
 }
 
 export interface DiaryMessage {

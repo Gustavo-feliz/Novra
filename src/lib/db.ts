@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import type { Appointment, DiaryPost, FinanceTx, Patient, PatientPlan, QuestionnaireTemplate } from "./types";
+import type { Appointment, BookingConfig, DiaryPost, FinanceTx, Patient, PatientPlan, QuestionnaireTemplate, SlideContent, SlideTemplate, WhatsAutomation } from "./types";
 
 /* ------------------------------- invites --------------------------------- */
 
@@ -116,8 +116,14 @@ export async function deletePatient(id: string) {
 
 /* ----------------------------- appointments ------------------------------ */
 
-function rowToAppointment(r: any): Appointment & { id: string } {
-  return { id: r.id, paciente: r.paciente, hora: r.hora, dur: Number(r.dur), tipo: r.tipo, modo: r.modo, dia: Number(r.dia) };
+function rowToAppointment(r: any): Appointment {
+  return { id: r.id, paciente: r.paciente, hora: r.hora, dur: Number(r.dur), tipo: r.tipo, modo: r.modo, dia: Number(r.dia), patientId: r.patient_id ?? undefined };
+}
+
+export async function getAppointment(id: string): Promise<Appointment | null> {
+  const { data, error } = await supabase.from("appointments").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? rowToAppointment(data) : null;
 }
 
 export async function listAppointments(): Promise<Appointment[]> {
@@ -277,6 +283,108 @@ export async function getPlan(patientId: string): Promise<PatientPlan | null> {
   if (error) throw error;
   return data ? rowToPlan(data) : null;
 }
+
+/* --------------------------------- slides --------------------------------- */
+
+function rowToSlide(r: any): SlideTemplate {
+  return { id: r.id, titulo: r.titulo, categoria: r.categoria, cor: r.cor as [string, string], laminas: r.laminas as SlideContent[] };
+}
+
+export async function listSlides(): Promise<SlideTemplate[]> {
+  const { data, error } = await supabase.from("slides").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(rowToSlide);
+}
+
+export async function createSlide(s: Omit<SlideTemplate, "id">, createdBy: string): Promise<SlideTemplate> {
+  const { data, error } = await supabase.from("slides")
+    .insert({ titulo: s.titulo, categoria: s.categoria, cor: s.cor, laminas: s.laminas, created_by: createdBy })
+    .select("*").single();
+  if (error) throw error;
+  return rowToSlide(data);
+}
+
+export async function updateSlide(id: string, patch: Omit<SlideTemplate, "id">): Promise<SlideTemplate> {
+  const { data, error } = await supabase.from("slides")
+    .update({ titulo: patch.titulo, categoria: patch.categoria, cor: patch.cor, laminas: patch.laminas, updated_at: new Date().toISOString() })
+    .eq("id", id).select("*").single();
+  if (error) throw error;
+  return rowToSlide(data);
+}
+
+export async function deleteSlide(id: string) {
+  const { error } = await supabase.from("slides").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* -------------------------- whats_automations ----------------------------- */
+
+function rowToWhats(r: any): WhatsAutomation {
+  return { id: r.id, nome: r.nome, icon: r.icon as WhatsAutomation["icon"], gatilho: r.gatilho, quando: r.quando, template: r.template, ativo: r.ativo, enviadas: Number(r.enviadas) };
+}
+
+export async function listWhatsAutomations(): Promise<WhatsAutomation[]> {
+  const { data, error } = await supabase.from("whats_automations").select("*").order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(rowToWhats);
+}
+
+export async function createWhatsAutomation(a: Omit<WhatsAutomation, "id">, createdBy: string): Promise<WhatsAutomation> {
+  const { data, error } = await supabase.from("whats_automations")
+    .insert({ nome: a.nome, icon: a.icon, gatilho: a.gatilho, quando: a.quando, template: a.template, ativo: a.ativo, enviadas: a.enviadas, created_by: createdBy })
+    .select("*").single();
+  if (error) throw error;
+  return rowToWhats(data);
+}
+
+export async function updateWhatsAutomation(id: string, patch: Partial<Pick<WhatsAutomation, "ativo" | "template" | "enviadas">>): Promise<WhatsAutomation> {
+  const { data, error } = await supabase.from("whats_automations").update(patch).eq("id", id).select("*").single();
+  if (error) throw error;
+  return rowToWhats(data);
+}
+
+/* ---------------------------- booking_config ----------------------------- */
+
+function rowToBookingConfig(r: any): BookingConfig {
+  return { slug: r.slug, ativo: r.ativo, confirmAuto: r.confirm_auto, servicos: r.servicos ?? [], horarios: r.horarios ?? [] };
+}
+
+export async function getBookingConfig(): Promise<BookingConfig | null> {
+  const { data, error } = await supabase.from("booking_config").select("*").maybeSingle();
+  if (error) throw error;
+  return data ? rowToBookingConfig(data) : null;
+}
+
+export async function saveBookingConfig(config: BookingConfig, createdBy: string): Promise<void> {
+  const { error } = await supabase.from("booking_config").upsert({
+    created_by: createdBy,
+    slug: config.slug,
+    ativo: config.ativo,
+    confirm_auto: config.confirmAuto,
+    servicos: config.servicos,
+    horarios: config.horarios,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+export async function getBookingPublic(slug: string): Promise<BookingConfig | null> {
+  const { data, error } = await supabase.rpc("get_booking_public", { p_slug: slug });
+  if (error || !data) return null;
+  const d = data as any;
+  return { slug: d.slug, ativo: d.ativo, confirmAuto: true, servicos: d.servicos ?? [], horarios: d.horarios ?? [] };
+}
+
+export async function requestAppointment(slug: string, opts: { nome: string; hora: string; tipo: string; modo: string; dur: number; dia: number }): Promise<boolean> {
+  const { data, error } = await supabase.rpc("request_appointment", {
+    p_slug: slug, p_nome: opts.nome, p_hora: opts.hora,
+    p_tipo: opts.tipo, p_modo: opts.modo, p_dur: opts.dur, p_dia: opts.dia,
+  });
+  if (error) return false;
+  return (data as any)?.ok === true;
+}
+
+/* --------------------------------- plans ---------------------------------- */
 
 export async function savePlan(plan: PatientPlan, updatedBy: string): Promise<PatientPlan> {
   const { data, error } = await supabase

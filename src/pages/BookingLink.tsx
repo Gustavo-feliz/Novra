@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Link2, Copy, Check, Salad, Clock, MapPin, Calendar, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Link2, Copy, Check, Salad, Clock, MapPin, Calendar, ChevronLeft, ChevronRight, ExternalLink, Save } from "lucide-react";
 import { Card, Button, Field, Input, Toggle } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { BOOKING, CLINIC } from "../lib/mock";
+import { getBookingConfig, saveBookingConfig } from "../lib/db";
+import { getUserId } from "../lib/auth";
 import { brl, cx } from "../lib/utils";
 
 const DIAS = [
@@ -11,6 +14,7 @@ const DIAS = [
 ];
 
 export default function BookingLink() {
+  const nav = useNavigate();
   const toast = useToast();
   const [slug, setSlug] = useState(BOOKING.slug);
   const [ativo, setAtivo] = useState(true);
@@ -19,9 +23,49 @@ export default function BookingLink() {
   const [svc, setSvc] = useState(1);
   const [dia, setDia] = useState(2);
   const [hora, setHora] = useState<string | null>(null);
-  const url = `novra.app/${slug}`;
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const url = `${window.location.origin}/agendar/${slug}`;
 
-  const copy = () => { setCopied(true); toast("Link copiado"); setTimeout(() => setCopied(false), 1600); };
+  useEffect(() => {
+    getBookingConfig().then((cfg) => {
+      if (cfg) {
+        setSlug(cfg.slug);
+        setAtivo(cfg.ativo);
+        setConfirmAuto(cfg.confirmAuto);
+      }
+    }).catch(() => {}).finally(() => setLoaded(true));
+  }, []);
+
+  const copy = () => {
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast("Link copiado");
+    setTimeout(() => setCopied(false), 1600);
+  };
+
+  const salvar = async () => {
+    const uid = getUserId();
+    if (!uid || saving) return;
+    const cleanSlug = slug.trim().replace(/[^a-z0-9-]/gi, "").toLowerCase();
+    if (!cleanSlug) { toast("Slug inválido"); return; }
+    setSaving(true);
+    try {
+      await saveBookingConfig({
+        slug: cleanSlug,
+        ativo,
+        confirmAuto,
+        servicos: BOOKING.servicos,
+        horarios: BOOKING.horarios,
+      }, uid);
+      setSlug(cleanSlug);
+      toast("Configuração salva");
+    } catch {
+      toast("Erro ao salvar configuração");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
@@ -30,7 +74,10 @@ export default function BookingLink() {
           <div className="h1">Link de agendamento</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>Seu paciente marca sozinho — você só confirma</div>
         </div>
-        <Button variant="ghost" onClick={() => toast("Abrindo página pública")}><ExternalLink size={15} />Ver página</Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="ghost" onClick={() => nav(`/agendar/${slug}`)}><ExternalLink size={15} />Ver página</Button>
+          <Button variant="primary" onClick={salvar} disabled={saving || !loaded}><Save size={15} />{saving ? "Salvando…" : "Salvar"}</Button>
+        </div>
       </div>
 
       <div className="gcol gcol-resp" style={{ gridTemplateColumns: "1fr 1.1fr", alignItems: "start" }}>
@@ -41,7 +88,7 @@ export default function BookingLink() {
             <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
               <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 10, padding: "0 12px", height: 38 }}>
                 <Link2 size={15} className="faint" />
-                <span className="num" style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{url}</span>
+                <span className="num" style={{ fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{url}</span>
               </div>
               <Button variant="primary" onClick={copy}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Copiado" : "Copiar"}</Button>
             </div>
@@ -87,7 +134,7 @@ export default function BookingLink() {
         <Card glass pad style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--glass-brd)", display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ display: "flex", gap: 5 }}><i style={{ width: 9, height: 9, borderRadius: 99, background: "var(--red)", display: "inline-block" }} /><i style={{ width: 9, height: 9, borderRadius: 99, background: "var(--amber)", display: "inline-block" }} /><i style={{ width: 9, height: 9, borderRadius: 99, background: "var(--green)", display: "inline-block" }} /></span>
-            <div style={{ flex: 1, textAlign: "center" }} className="num faint"><span style={{ fontSize: 11.5 }}>{url}</span></div>
+            <div style={{ flex: 1, textAlign: "center" }} className="num faint"><span style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{url}</span></div>
           </div>
           <div style={{ padding: 22 }}>
             <div style={{ textAlign: "center", marginBottom: 22 }}>

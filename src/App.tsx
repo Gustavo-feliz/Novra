@@ -25,6 +25,7 @@ const Settings     = lazy(() => import("./pages/Settings"));
 const Consultation = lazy(() => import("./pages/Consultation"));
 const PatientProfile = lazy(() => import("./pages/PatientProfile"));
 const Portal       = lazy(() => import("./pages/Portal"));
+const Booking      = lazy(() => import("./pages/Booking"));
 
 function PageFallback() {
   return <div style={{ minHeight: "60vh" }} aria-busy="true" aria-label="Carregando..." />;
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
         </Route>
         <Route path="/portal/:slug/*" element={<Portal />} />
+        <Route path="/agendar/:slug" element={<Booking />} />
         <Route path="/patients/:id" element={<RequireClinic><PatientProfile /></RequireClinic>} />
         <Route path="/consultation/:id" element={<RequireClinic><Consultation /></RequireClinic>} />
         <Route path="*" element={<Navigate to="/" replace />} />

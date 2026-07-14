@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle, Cake, CheckCircle2, Bell, Heart, Star, Pencil, Plus, Smartphone, Check } from "lucide-react";
 import { Card, Button, Chip, Toggle, Modal, Textarea } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { WHATS_AUTOMATIONS, CLINIC } from "../lib/mock";
-import { LOCAL_KEYS, type WhatsQueueItem, usePersistentState } from "../lib/localData";
+import { listWhatsAutomations, createWhatsAutomation, updateWhatsAutomation } from "../lib/db";
+import { getUserId } from "../lib/auth";
 import type { WhatsAutomation } from "../lib/types";
-import { num, uid } from "../lib/utils";
+import { num } from "../lib/utils";
 
 const ICONS = { cake: Cake, check: CheckCircle2, bell: Bell, heart: Heart, star: Star };
 const VARS = ["{nome}", "{nutri}", "{clinica}", "{data}", "{hora}", "{link}"];
+
+type QueueItem = { id: string; automacao: string; paciente: string; quando: string; status: string };
 
 function preview(t: string) {
   return t
@@ -23,26 +26,65 @@ function preview(t: string) {
 
 export default function WhatsApp() {
   const toast = useToast();
-  const [list, setList] = usePersistentState<WhatsAutomation[]>(LOCAL_KEYS.whatsAutomations, WHATS_AUTOMATIONS);
-  const [queue, setQueue] = usePersistentState<WhatsQueueItem[]>(LOCAL_KEYS.whatsQueue, []);
+  const [list, setList] = useState<WhatsAutomation[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [edit, setEdit] = useState<WhatsAutomation | null>(null);
   const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const toggle = (id: string) => setList(list.map((a) => a.id === id ? { ...a, ativo: !a.ativo } : a));
+  useEffect(() => {
+    const uid = getUserId();
+    if (!uid) { setLoading(false); return; }
+    listWhatsAutomations().then((data) => {
+      if (data.length === 0) {
+        return Promise.all(
+          WHATS_AUTOMATIONS.map((a) => createWhatsAutomation(
+            { nome: a.nome, icon: a.icon, gatilho: a.gatilho, quando: a.quando, template: a.template, ativo: a.ativo, enviadas: 0 },
+            uid,
+          ))
+        ).then((saved) => setList(saved));
+      }
+      setList(data);
+    }).catch(() => toast("Erro ao carregar automações")).finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async (id: string) => {
+    const a = list.find((x) => x.id === id);
+    if (!a) return;
+    try {
+      const updated = await updateWhatsAutomation(id, { ativo: !a.ativo });
+      setList(list.map((x) => x.id === id ? updated : x));
+    } catch {
+      toast("Erro ao atualizar automação");
+    }
+  };
+
+  const save = async () => {
+    if (!edit) return;
+    try {
+      const updated = await updateWhatsAutomation(edit.id, { template: draft });
+      setList(list.map((a) => a.id === edit.id ? updated : a));
+      setEdit(null);
+      toast("Modelo de mensagem salvo");
+    } catch {
+      toast("Erro ao salvar modelo");
+    }
+  };
+
+  const simulateSend = async (automation: WhatsAutomation) => {
+    const texto = preview(automation.template);
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
+    try {
+      const updated = await updateWhatsAutomation(automation.id, { enviadas: automation.enviadas + 1 });
+      setList(list.map((a) => a.id === automation.id ? updated : a));
+    } catch { /* ignore count error */ }
+    const item: QueueItem = { id: String(Date.now()), automacao: automation.nome, paciente: "Teste manual", quando: "Agora", status: "enviado" };
+    setQueue((q) => [item, ...q]);
+    toast("WhatsApp aberto com a mensagem pronta para envio");
+  };
+
   const ativas = list.filter((a) => a.ativo).length;
   const total = list.reduce((a, x) => a + x.enviadas, 0);
-
-  const save = () => {
-    if (!edit) return;
-    setList(list.map((a) => a.id === edit.id ? { ...a, template: draft } : a));
-    setEdit(null); toast("Modelo de mensagem salvo");
-  };
-  const simulateSend = (automation: WhatsAutomation) => {
-    const item: WhatsQueueItem = { id: uid(), automacao: automation.nome, paciente: "Mariana Costa", canal: "WhatsApp", quando: "Agora", status: "enviado" };
-    setQueue([item, ...queue]);
-    setList(list.map((a) => a.id === automation.id ? { ...a, enviadas: a.enviadas + 1 } : a));
-    toast("Mensagem enviada e registrada na fila");
-  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3 }}>
@@ -51,7 +93,7 @@ export default function WhatsApp() {
           <div className="h1">WhatsApp automático</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>Disparos automáticos de aniversário, confirmação e lembretes</div>
         </div>
-        <Button variant="primary" onClick={() => toast("Nova automação")}><Plus size={15} />Nova automação</Button>
+        <Button variant="primary" onClick={() => toast("Nova automação — em breve")}><Plus size={15} />Nova automação</Button>
       </div>
 
       <div className="grow grow-resp" style={{ marginBottom: 18 }}>
@@ -65,41 +107,45 @@ export default function WhatsApp() {
         </Card>
         <Card pad style={{ flex: 1, minWidth: 130 }}><div className="faint" style={{ fontSize: 11.5 }}>Automações ativas</div><div className="num" style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{ativas}<span className="faint" style={{ fontSize: 14 }}>/{list.length}</span></div></Card>
         <Card pad style={{ flex: 1, minWidth: 130 }}><div className="faint" style={{ fontSize: 11.5 }}>Enviadas no mês</div><div className="num" style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{num(total)}</div></Card>
-        <Card pad style={{ flex: 1, minWidth: 130 }}><div className="faint" style={{ fontSize: 11.5 }}>Fila local</div><div className="num" style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{queue.length}</div></Card>
+        <Card pad style={{ flex: 1, minWidth: 130 }}><div className="faint" style={{ fontSize: 11.5 }}>Fila de teste</div><div className="num" style={{ fontSize: 24, fontWeight: 600, marginTop: 4 }}>{queue.length}</div></Card>
       </div>
 
-      <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
-        {list.map((a) => {
-          const Icon = ICONS[a.icon];
-          return (
-            <Card key={a.id} pad style={{ display: "flex", flexDirection: "column", gap: 12, opacity: a.ativo ? 1 : .72 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 11, background: a.ativo ? "var(--sage-soft)" : "var(--surface2)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon size={18} color={a.ativo ? "var(--sage)" : "var(--faint)"} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="h3">{a.nome}</div>
-                  <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{a.gatilho}</div>
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--faint)", fontSize: 13 }}><div className="spinner" />Carregando automações…</div>
+      ) : (
+        <div className="gcol" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
+          {list.map((a) => {
+            const Icon = ICONS[a.icon];
+            return (
+              <Card key={a.id} pad style={{ display: "flex", flexDirection: "column", gap: 12, opacity: a.ativo ? 1 : .72 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 11, background: a.ativo ? "var(--sage-soft)" : "var(--surface2)", display: "grid", placeItems: "center", flexShrink: 0 }}><Icon size={18} color={a.ativo ? "var(--sage)" : "var(--faint)"} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="h3">{a.nome}</div>
+                    <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>{a.gatilho}</div>
+                  </div>
+                  <Toggle on={a.ativo} onClick={() => toggle(a.id)} />
                 </div>
-                <Toggle on={a.ativo} onClick={() => toggle(a.id)} />
-              </div>
-              <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>
-                {a.template.length > 110 ? a.template.slice(0, 110) + "…" : a.template}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 2 }}>
-                <Chip><Bell size={11} />{a.quando}</Chip>
-                <span className="faint num" style={{ fontSize: 11.5 }}>{a.enviadas} enviadas</span>
-                <Button variant="subtle" sm style={{ marginLeft: "auto" }} onClick={() => simulateSend(a)}>Testar envio</Button>
-                <Button variant="subtle" sm onClick={() => { setEdit(a); setDraft(a.template); }}><Pencil size={13} />Editar</Button>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+                <div style={{ background: "var(--surface2)", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, lineHeight: 1.5, color: "var(--muted)" }}>
+                  {a.template.length > 110 ? a.template.slice(0, 110) + "…" : a.template}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 2 }}>
+                  <Chip><Bell size={11} />{a.quando}</Chip>
+                  <span className="faint num" style={{ fontSize: 11.5 }}>{a.enviadas} enviadas</span>
+                  <Button variant="subtle" sm style={{ marginLeft: "auto" }} onClick={() => simulateSend(a)}>Testar envio</Button>
+                  <Button variant="subtle" sm onClick={() => { setEdit(a); setDraft(a.template); }}><Pencil size={13} />Editar</Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {queue.length > 0 && (
         <Card pad style={{ marginTop: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span className="eyebrow">Historico de disparos</span>
-            <Button sm variant="subtle" onClick={() => setQueue([])}>Limpar fila</Button>
+            <span className="eyebrow">Histórico de disparos (sessão atual)</span>
+            <Button sm variant="subtle" onClick={() => setQueue([])}>Limpar</Button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {queue.slice(0, 6).map((item) => (
