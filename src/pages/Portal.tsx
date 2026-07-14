@@ -266,7 +266,9 @@ export default function Portal() {
   // login) OU (b) já validou o código de acesso antes (sessão de portal). Saber
   // apenas o slug da URL NÃO é mais suficiente.
   const [unlocked, setUnlocked] = useState(
-    (getRole() === "patient" && slug === PORTAL_ACCESS.slug) || getPortalSlug() === slug,
+    getRole() === "nutritionist" ||
+    (getRole() === "patient" && slug === PORTAL_ACCESS.slug) ||
+    getPortalSlug() === slug,
   );
   const [sheet, setSheet] = useState(false);
   const patient = PATIENTS.find((p) => p.id === PORTAL_ACCESS.patientId) ?? PATIENTS[0];
