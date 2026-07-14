@@ -1,6 +1,45 @@
 import { supabase } from "./supabaseClient";
 import type { Appointment, DiaryPost, FinanceTx, Patient, PatientPlan, QuestionnaireTemplate } from "./types";
 
+/* ------------------------------- invites --------------------------------- */
+
+export type InviteInfo = {
+  id: string;
+  invited_by: string;
+  patient_name: string | null;
+  patient_email: string | null;
+  expires_at: string;
+  used_at: string | null;
+  clinic_name: string;
+};
+
+export async function createInvite(opts: { patientEmail?: string; patientName?: string }, createdBy: string): Promise<{ token: string; url: string }> {
+  const { data, error } = await supabase
+    .from("patient_invites")
+    .insert({
+      invited_by: createdBy,
+      patient_email: opts.patientEmail?.trim() || null,
+      patient_name: opts.patientName?.trim() || null,
+    })
+    .select("token")
+    .single();
+  if (error) throw error;
+  const url = `${window.location.origin}/convite?token=${data.token}`;
+  return { token: data.token as string, url };
+}
+
+export async function getInviteInfo(token: string): Promise<InviteInfo | null> {
+  const { data, error } = await supabase.rpc("get_invite_info", { p_token: token });
+  if (error || !data) return null;
+  return data as InviteInfo;
+}
+
+export async function useInvite(token: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("use_invite", { p_token: token });
+  if (error) return false;
+  return (data as any)?.ok === true;
+}
+
 /* ------------------------------- patients -------------------------------- */
 
 function rowToPatient(r: any): Patient {

@@ -1,13 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search, UserPlus, LayoutGrid, Columns3, ChevronRight, Camera, Plus, X } from "lucide-react";
+import { Search, UserPlus, LayoutGrid, Columns3, ChevronRight, Camera, Plus, X, Link2, Copy, Check, Send } from "lucide-react";
 import { Card, Button, Avatar, Chip, Input, Field, Textarea, Segmented, Modal } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { STATUS_META } from "../lib/mock";
 import type { Patient, PatientStatus } from "../lib/types";
 import { initials, cx, calcularIdade } from "../lib/utils";
-import { createPatient, listPatients } from "../lib/db";
+import { createPatient, listPatients, createInvite } from "../lib/db";
 import { getUserId } from "../lib/auth";
 
 type StatusFilter = "todos" | PatientStatus;
@@ -55,6 +55,42 @@ export default function Patients() {
   const [form, setForm] = useState(FORM_VAZIO);
   const [formTags, setFormTags] = useState<string[]>([]);
   const [addingTag, setAddingTag] = useState(false);
+
+  // ── Convite ────────────────────────────────────────────────────────────────
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteStep, setInviteStep] = useState<"form" | "link">("form");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const abrirConvite = () => { setInviteOpen(true); setInviteStep("form"); setInviteEmail(""); setInviteName(""); setInviteUrl(""); setCopied(false); };
+  const fecharConvite = () => { setInviteOpen(false); };
+
+  const gerarLink = async () => {
+    const userId = getUserId();
+    if (!userId || inviteLoading) return;
+    setInviteLoading(true);
+    try {
+      const { url } = await createInvite({ patientEmail: inviteEmail.trim() || undefined, patientName: inviteName.trim() || undefined }, userId);
+      setInviteUrl(url);
+      setInviteStep("link");
+    } catch {
+      toast("Erro ao gerar link de convite");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const copiarLink = () => {
+    navigator.clipboard.writeText(inviteUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+
+  const compartilharWhatsApp = () => {
+    const msg = encodeURIComponent(`Olá${inviteName ? ` ${inviteName.split(" ")[0]}` : ""}! 👋\n\nAcesse seu portal de saúde personalizado pelo link abaixo:\n${inviteUrl}`);
+    window.open(`https://wa.me/?text=${msg}`, "_blank");
+  };
 
   useEffect(() => { if (params.get("novo")) { setNovo(true); setParams({}, { replace: true }); } }, [params, setParams]);
   useEffect(() => { listPatients().then(setPatients).catch(() => toast("Erro ao carregar pacientes")); }, []);
@@ -107,7 +143,10 @@ export default function Patients() {
           <div className="h1">Pacientes</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>{filtered.length} de {patients.length} pacientes</div>
         </div>
-        <Button variant="primary" onClick={() => setNovo(true)}><UserPlus size={15} />Novo paciente</Button>
+        <div style={{ display: "flex", gap: 9 }}>
+          <Button variant="ghost" onClick={abrirConvite}><Link2 size={15} />Convidar paciente</Button>
+          <Button variant="primary" onClick={() => setNovo(true)}><UserPlus size={15} />Novo paciente</Button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
@@ -155,6 +194,85 @@ export default function Patients() {
             );
           })}
         </div>
+      )}
+
+      {inviteOpen && (
+        <Modal
+          title="Convidar paciente"
+          sub={inviteStep === "form" ? "O paciente receberá um link para criar a conta vinculada à sua clínica" : "Compartilhe o link com seu paciente"}
+          onClose={fecharConvite}
+          max={460}
+          footer={inviteStep === "form" ? (
+            <>
+              <Button variant="ghost" onClick={fecharConvite}>Cancelar</Button>
+              <Button variant="primary" onClick={gerarLink} disabled={inviteLoading}>
+                {inviteLoading ? "Gerando…" : <><Link2 size={15} />Gerar link</>}
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" onClick={fecharConvite}>Fechar</Button>
+          )}
+        >
+          {inviteStep === "form" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <Field label="Nome do paciente (opcional)">
+                <Input
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="Ex: Maria Silva"
+                  onKeyDown={(e) => e.key === "Enter" && gerarLink()}
+                />
+              </Field>
+              <Field label="E-mail do paciente (opcional)">
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="paciente@email.com"
+                  onKeyDown={(e) => e.key === "Enter" && gerarLink()}
+                />
+              </Field>
+              <div className="banner" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+                O link é válido por <strong>7 dias</strong>. Quando o paciente se cadastrar, ele já aparecerá vinculado à sua clínica.
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 2 }}>Link gerado com sucesso — válido por 7 dias.</div>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: "var(--surface2)", border: "1px solid var(--border)",
+                borderRadius: 10, padding: "10px 12px",
+              }}>
+                <span style={{ flex: 1, fontSize: 12.5, wordBreak: "break-all", fontFamily: "monospace", color: "var(--muted)" }}>
+                  {inviteUrl}
+                </span>
+                <button
+                  className="iconbtn"
+                  onClick={copiarLink}
+                  title="Copiar link"
+                  style={{ flexShrink: 0, color: copied ? "var(--sage-strong)" : undefined }}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 9 }}>
+                <Button variant="primary" style={{ flex: 1 }} onClick={copiarLink}>
+                  {copied ? <><Check size={15} />Copiado!</> : <><Copy size={15} />Copiar link</>}
+                </Button>
+                <Button variant="ghost" style={{ flex: 1 }} onClick={compartilharWhatsApp}>
+                  <Send size={15} />WhatsApp
+                </Button>
+              </div>
+              <button
+                style={{ background: "none", border: "none", fontSize: 12.5, color: "var(--faint)", cursor: "pointer", textAlign: "center", marginTop: 2 }}
+                onClick={() => { setInviteStep("form"); setInviteUrl(""); setCopied(false); }}
+              >
+                Gerar novo link
+              </button>
+            </div>
+          )}
+        </Modal>
       )}
 
       {novo && (

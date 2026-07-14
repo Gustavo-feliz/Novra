@@ -34,6 +34,17 @@ async function syncFromSession(session: Session | null) {
   } else {
     const profile = await fetchProfile(session.user.id);
     cached = { userId: session.user.id, role: roleMap[profile.role], patientId: profile.patient_id };
+
+    // Processa convite pendente (fluxo de confirmação de e-mail):
+    // o token foi guardado no sessionStorage no momento do cadastro e é
+    // consumido aqui na primeira sessão ativa do paciente.
+    if (roleMap[profile.role] === "patient" && hasWindow) {
+      const pending = window.sessionStorage.getItem("novra.pending_invite");
+      if (pending) {
+        window.sessionStorage.removeItem("novra.pending_invite");
+        supabase.rpc("use_invite", { p_token: pending }).then(() => {}, () => {});
+      }
+    }
   }
   ready = true;
   listeners.forEach((fn) => fn());
@@ -97,10 +108,18 @@ export async function signUp(name: string, email: string, password: string): Pro
   return { session: !!data.session };
 }
 
-/** Autocadastro do paciente, feito a partir do link de convite enviado pelo
- *  profissional. O profile com role 'patient' e o registro em patients são
- *  criados juntos pelo trigger handle_new_user a partir do metadata aqui. */
-export async function signUpPatient(data: { name: string; email: string; password: string; telefone?: string; dataNascimento?: string; sexo?: string }): Promise<{ session: boolean }> {
+/** Autocadastro do paciente via link de convite.
+ *  O campo invitedBy (user id do nutricionista) é passado ao trigger via
+ *  metadata para que created_by seja setado automaticamente no banco. */
+export async function signUpPatient(data: {
+  name: string;
+  email: string;
+  password: string;
+  telefone?: string;
+  dataNascimento?: string;
+  sexo?: string;
+  invitedBy?: string;
+}): Promise<{ session: boolean }> {
   const { data: res, error } = await supabase.auth.signUp({
     email: data.email,
     password: data.password,
@@ -111,6 +130,7 @@ export async function signUpPatient(data: { name: string; email: string; passwor
         telefone: data.telefone,
         data_nascimento: data.dataNascimento,
         sexo: data.sexo,
+        invited_by: data.invitedBy ?? null,
       },
     },
   });
