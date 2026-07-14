@@ -152,25 +152,25 @@ export default function Financial() {
         <span className="eyebrow">Movimentações recentes</span>
         <span className="chip">{txs.length} lançamentos</span>
       </div>
-      <Card style={{ overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table className="tbl" style={{ minWidth: 640 }}>
-            <thead><tr><th>Data</th><th>Paciente</th><th>Descrição</th><th className="num">Valor</th><th>Forma</th><th>Status</th><th>Recibo</th></tr></thead>
+      <Card style={{ overflow: "auto" }}>
+          <table className="tbl tbl-finance">
+            <thead><tr><th className="tbl-f-date">Data</th><th>Paciente</th><th className="tbl-f-desc">Descrição</th><th className="num">Valor</th><th className="tbl-f-forma">Forma</th><th>Status</th><th>Ação</th></tr></thead>
             <tbody>
               {txs.map((t) => (
                 <tr key={t.id} style={{ cursor: "pointer" }} onClick={() => nav(`/patients/${t.pacienteId}`)}>
-                  <td className="num">{t.data}</td>
-                  <td style={{ fontWeight: 500 }}>{t.paciente}</td>
-                  <td className="muted">{t.desc}</td>
+                  <td className="num tbl-f-date">{t.data}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    {t.paciente}
+                    <div className="tbl-f-sub">{t.data} · {t.forma}</div>
+                  </td>
+                  <td className="muted tbl-f-desc">{t.desc}</td>
                   <td className="num" style={{ fontWeight: 600 }}>{m(brl(t.valor))}</td>
-                  <td className="faint">{t.forma}</td>
+                  <td className="faint tbl-f-forma">{t.forma}</td>
                   <td><span className={cx("chip", STATUS_CHIP[t.status])} style={{ height: 22 }}>{t.status}</span></td>
                   <td onClick={(e) => {
                     e.stopPropagation();
                     if (t.status === "Pago") toast("Recibo emitido");
-                    else {
-                      marcarPago(t);
-                    }
+                    else marcarPago(t);
                   }}>
                     <Button variant="subtle" sm>{t.status === "Pago" ? <><Receipt size={13} />Emitir</> : "Cobrar"}</Button>
                   </td>
@@ -178,7 +178,6 @@ export default function Financial() {
               ))}
             </tbody>
           </table>
-        </div>
       </Card>
 
       {novo && (

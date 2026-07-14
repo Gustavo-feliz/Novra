@@ -669,3 +669,17 @@
   .portal-grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .portal-diary-grid, .portal-achv-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- clinic pages: financial table responsive ---- */
+.tbl-f-sub { display: none; }
+
+@media (max-width: 920px) {
+  /* Tabela de movimentacoes: esconde colunas nao essenciais em vez de scroll largo */
+  .tbl-finance { width: 100%; }
+  .tbl-f-date, .tbl-f-desc, .tbl-f-forma { display: none; }
+  /* Mostra data + forma em linha secundaria dentro da celula do paciente */
+  .tbl-f-sub { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+  /* Alvos de toque para inputs/selects na clinica */
+  .app-main .input, .app-main .select, .app-main textarea.input { font-size: 16px; }
+  .app-main textarea.input { height: auto; }
+}
