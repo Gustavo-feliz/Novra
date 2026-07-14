@@ -14,7 +14,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={toast}>
       {children}
-      <div className="toasts">
+      <div className="toasts" role="status" aria-live="polite" aria-atomic="false">
         {toasts.map((t) => (
           <div key={t.id} className="toast"><i className="dot" />{t.msg}</div>
         ))}

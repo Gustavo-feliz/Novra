@@ -683,3 +683,20 @@
   .app-main .input, .app-main .select, .app-main textarea.input { font-size: 16px; }
   .app-main textarea.input { height: auto; }
 }
+
+/* ── Acessibilidade: skip link ──────────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--sage);
+  color: #fff;
+  border-radius: 0 0 8px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top .15s;
+}
+.skip-link:focus { top: 0; outline: 3px solid var(--sage-strong); outline-offset: 2px; }

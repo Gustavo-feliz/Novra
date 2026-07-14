@@ -71,6 +71,7 @@ export function Shell() {
 
   return (
     <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <a href="#main-content" className="skip-link">Pular para o conteúdo</a>
       <header className="topbar" style={topbar}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 600, letterSpacing: "-.02em" }}>
           <div className="brand-mark"><Salad size={15} /></div>
@@ -103,7 +104,7 @@ export function Shell() {
           <NavGroup label="Ferramentas" items={FERRAMENTAS} />
         </aside>
 
-        <main className="app-main"><Outlet /></main>
+        <main id="main-content" className="app-main"><Outlet /></main>
       </div>
 
       <nav className="bottom-nav">

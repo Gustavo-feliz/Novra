@@ -1,29 +1,34 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { CommandPalette } from "./components/CommandPalette";
 import { getRole, isAuthenticated, isAuthReady, onAuthChange, waitForAuth } from "./lib/auth";
 import { PORTAL_ACCESS } from "./lib/mock";
-import Login from "./pages/Login";
-import Cadastro from "./pages/Cadastro";
-import Convite from "./pages/Convite";
-import Onboarding from "./pages/Onboarding";
-import Dashboard from "./pages/Dashboard";
-import Patients from "./pages/Patients";
-import Diaries from "./pages/Diaries";
-import Questionnaires from "./pages/Questionnaires";
-import Financial from "./pages/Financial";
-import Favorites from "./pages/Favorites";
-import VideoCall from "./pages/VideoCall";
-import Slides from "./pages/Slides";
-import Agenda from "./pages/Agenda";
-import BookingLink from "./pages/BookingLink";
-import Creator from "./pages/Creator";
-import WhatsApp from "./pages/WhatsApp";
-import Settings from "./pages/Settings";
-import Consultation from "./pages/Consultation";
-import PatientProfile from "./pages/PatientProfile";
-import Portal from "./pages/Portal";
+
+const Login        = lazy(() => import("./pages/Login"));
+const Cadastro     = lazy(() => import("./pages/Cadastro"));
+const Convite      = lazy(() => import("./pages/Convite"));
+const Onboarding   = lazy(() => import("./pages/Onboarding"));
+const Dashboard    = lazy(() => import("./pages/Dashboard"));
+const Patients     = lazy(() => import("./pages/Patients"));
+const Diaries      = lazy(() => import("./pages/Diaries"));
+const Questionnaires = lazy(() => import("./pages/Questionnaires"));
+const Financial    = lazy(() => import("./pages/Financial"));
+const Favorites    = lazy(() => import("./pages/Favorites"));
+const VideoCall    = lazy(() => import("./pages/VideoCall"));
+const Slides       = lazy(() => import("./pages/Slides"));
+const Agenda       = lazy(() => import("./pages/Agenda"));
+const BookingLink  = lazy(() => import("./pages/BookingLink"));
+const Creator      = lazy(() => import("./pages/Creator"));
+const WhatsApp     = lazy(() => import("./pages/WhatsApp"));
+const Settings     = lazy(() => import("./pages/Settings"));
+const Consultation = lazy(() => import("./pages/Consultation"));
+const PatientProfile = lazy(() => import("./pages/PatientProfile"));
+const Portal       = lazy(() => import("./pages/Portal"));
+
+function PageFallback() {
+  return <div style={{ minHeight: "60vh" }} aria-busy="true" aria-label="Carregando..." />;
+}
 
 /** Espelha a sessão do Supabase Auth de forma reativa para os guards de rota. */
 function useAuthState() {
@@ -64,6 +69,7 @@ export default function App() {
   return (
     <>
       {!isPortal && <CommandPalette />}
+      <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
@@ -89,6 +95,7 @@ export default function App() {
         <Route path="/consultation/:id" element={<RequireClinic><Consultation /></RequireClinic>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </>
   );
 }
