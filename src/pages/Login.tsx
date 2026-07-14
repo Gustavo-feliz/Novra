@@ -26,6 +26,7 @@ import {
   recordFailedAttempt,
   resetPassword,
   signInWithGoogle,
+  signUp,
 } from "../lib/auth";
 
 const DEMO = { email: "nutri123@gmail.com", password: "nutri123" };
@@ -72,10 +73,41 @@ export default function Login() {
     setCapsLock(e.getModifierState("CapsLock"));
   }
 
-  function fillDemo() {
+  async function loginDemo() {
+    if (locked || loading) return;
     setEmail(DEMO.email);
     setSenha(DEMO.password);
     setError("");
+    setLoading(true);
+
+    const navigateAfterLogin = () => {
+      clearFailedAttempts();
+      const loggedRole = getRole();
+      const next = params.get("next");
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+      const target = loggedRole === "patient" ? `/portal/${PORTAL_ACCESS.slug}` : (safeNext ?? "/");
+      nav(target, { replace: true });
+    };
+
+    try {
+      await login(DEMO.email, DEMO.password);
+      navigateAfterLogin();
+    } catch {
+      // Conta não existe ainda — cria automaticamente e entra
+      try {
+        const { session } = await signUp("Nutricionista Demo", DEMO.email, DEMO.password);
+        if (session) {
+          navigateAfterLogin();
+        } else {
+          // Confirmação de e-mail ativa: informa o usuário
+          setError("Conta demo criada. Confirme o e-mail enviado para nutri123@gmail.com e faça login.");
+        }
+      } catch {
+        setError("Não foi possível acessar a conta demo. Verifique sua conexão.");
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function submit() {
@@ -225,7 +257,9 @@ export default function Login() {
                     Ainda não tem uma conta? <Link to="/cadastro">Criar conta <ArrowRight size={14} /></Link>
                   </p>
 
-                  <button type="button" className="auth-demo" onClick={fillDemo}>Usar conta de demonstração</button>
+                  <button type="button" className="auth-demo" onClick={loginDemo} disabled={loading || locked}>
+                    {loading && email === DEMO.email ? "Entrando na demo…" : "Usar conta de demonstração"}
+                  </button>
                 </div>
               </motion.div>
             ) : (
