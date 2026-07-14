@@ -111,11 +111,15 @@ export function loginAsDemo() {
 }
 
 export async function logout() {
-  if (hasWindow) window.sessionStorage.removeItem(DEMO_KEY);
-  if (!isDemoMode()) await supabase.auth.signOut();
-  cached = null;
-  ready = true;
-  listeners.forEach((fn) => fn());
+  if (isDemoMode()) {
+    if (hasWindow) window.sessionStorage.removeItem(DEMO_KEY);
+    cached = null;
+    ready = true;
+    listeners.forEach((fn) => fn());
+  } else {
+    // onAuthStateChange fires after signOut → syncFromSession(null) handles state
+    await supabase.auth.signOut();
+  }
 }
 
 /** Cadastro de profissional (nutricionista). O profile com role 'admin' é criado

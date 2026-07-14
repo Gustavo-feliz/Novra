@@ -59,7 +59,7 @@ import { ACHIEVEMENTS, computeUnlocked, useAchievements, useStreak } from "../li
 import { NotificationBell } from "../components/NotificationBell";
 import { InstallAppButton } from "../components/InstallAppButton";
 import { brl, cx, initials, logout, sanitizeText, uid } from "../lib/utils";
-import { getPortalSlug, getRole, unlockPortal } from "../lib/auth";
+import { getPortalSlug, getRole, onAuthChange, unlockPortal } from "../lib/auth";
 import {
   DEFAULT_REMINDERS, REFEICAO_HORARIOS, notificationPermission, requestNotificationPermission,
   showLocalNotification, type ReminderPrefs,
@@ -271,6 +271,12 @@ export default function Portal() {
     getPortalSlug() === slug,
   );
   const [sheet, setSheet] = useState(false);
+
+  // When the nutritionist refreshes directly at /portal/:slug, auth resolves
+  // asynchronously after first render — re-check role when it becomes ready.
+  useEffect(() => onAuthChange(() => {
+    if (getRole() === "nutritionist") setUnlocked(true);
+  }), []);
   const patient = PATIENTS.find((p) => p.id === PORTAL_ACCESS.patientId) ?? PATIENTS[0];
   const pendingCount = usePendingCount();
 

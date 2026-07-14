@@ -23,6 +23,10 @@ export type InviteInfo = {
 };
 
 export async function createInvite(opts: { patientEmail?: string; patientName?: string }, createdBy: string): Promise<{ token: string; url: string }> {
+  if (isDemoMode()) {
+    const token = demoId();
+    return { token, url: `${window.location.origin}/convite?token=${token}` };
+  }
   const { data, error } = await supabase
     .from("patient_invites")
     .insert({
@@ -425,7 +429,7 @@ export async function getBookingPublic(slug: string): Promise<BookingConfig | nu
   const { data, error } = await supabase.rpc("get_booking_public", { p_slug: slug });
   if (error || !data) return null;
   const d = data as any;
-  return { slug: d.slug, ativo: d.ativo, confirmAuto: true, servicos: d.servicos ?? [], horarios: d.horarios ?? [] };
+  return { slug: d.slug, ativo: d.ativo, confirmAuto: d.confirm_auto ?? true, servicos: d.servicos ?? [], horarios: d.horarios ?? [] };
 }
 
 export async function requestAppointment(slug: string, opts: { nome: string; hora: string; tipo: string; modo: string; dur: number; dia: number }): Promise<boolean> {
