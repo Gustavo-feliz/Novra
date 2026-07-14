@@ -15,6 +15,9 @@ type AuthState = { userId: string; role: Role; patientId: string | null } | null
 
 const ATTEMPTS_KEY = "nutriflow.login.attempts";
 const PORTAL_KEY = "nutriflow.portal.session";
+const DEMO_KEY = "novra.demo_mode";
+
+export const DEMO_USER_ID = "demo-00000000-0000-0000-0000-000000000000";
 
 /** Tentativas de login antes do bloqueio temporário. */
 export const MAX_ATTEMPTS = 5;
@@ -30,7 +33,12 @@ const listeners = new Set<() => void>();
 
 async function syncFromSession(session: Session | null) {
   if (!session) {
-    cached = null;
+    // Preserva modo demo mesmo sem sessão Supabase
+    if (hasWindow && window.sessionStorage.getItem(DEMO_KEY)) {
+      cached = { userId: DEMO_USER_ID, role: "nutritionist", patientId: null };
+    } else {
+      cached = null;
+    }
   } else {
     const profile = await fetchProfile(session.user.id);
     cached = { userId: session.user.id, role: roleMap[profile.role], patientId: profile.patient_id };
@@ -90,8 +98,24 @@ export async function login(email: string, password: string) {
   await syncFromSession(data.session);
 }
 
+export function isDemoMode(): boolean {
+  return cached?.userId === DEMO_USER_ID;
+}
+
+/** Ativa modo demo 100% frontend — sem conta Supabase. */
+export function loginAsDemo() {
+  if (hasWindow) window.sessionStorage.setItem(DEMO_KEY, "1");
+  cached = { userId: DEMO_USER_ID, role: "nutritionist", patientId: null };
+  ready = true;
+  listeners.forEach((fn) => fn());
+}
+
 export async function logout() {
-  await supabase.auth.signOut();
+  if (hasWindow) window.sessionStorage.removeItem(DEMO_KEY);
+  if (!isDemoMode()) await supabase.auth.signOut();
+  cached = null;
+  ready = true;
+  listeners.forEach((fn) => fn());
 }
 
 /** Cadastro de profissional (nutricionista). O profile com role 'admin' é criado
