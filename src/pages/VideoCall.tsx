@@ -8,14 +8,26 @@ import { listAppointments } from "../lib/db";
 import { initials, cx } from "../lib/utils";
 import type { Appointment } from "../lib/types";
 
+// `dia` é índice de dia da semana (0=Seg … 5=Sáb). Quando a consulta tem data
+// real (`data`), comparamos com hoje; senão caímos no índice de semana.
+function isToday(apt: Appointment): boolean {
+  const now = new Date();
+  if (apt.data) {
+    const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return apt.data === iso;
+  }
+  const todayIdx = now.getDay() === 0 ? -1 : now.getDay() - 1;
+  return apt.dia === todayIdx;
+}
+
 function roomStatus(apt: Appointment): "agora" | "proxima" | "agendada" {
   const [hh, mm] = apt.hora.split(":").map(Number);
   const now = new Date();
   const aptMin = hh * 60 + mm;
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const diff = aptMin - nowMin;
-  if (diff >= -15 && diff <= 30) return "agora";
-  if (apt.dia === now.getDate()) return "proxima";
+  if (isToday(apt) && diff >= -15 && diff <= 30) return "agora";
+  if (isToday(apt)) return "proxima";
   return "agendada";
 }
 

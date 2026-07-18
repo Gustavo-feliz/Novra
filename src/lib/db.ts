@@ -138,7 +138,7 @@ export async function deletePatient(id: string) {
 /* ----------------------------- appointments ------------------------------ */
 
 function rowToAppointment(r: any): Appointment {
-  return { id: r.id, paciente: r.paciente, hora: r.hora, dur: Number(r.dur), tipo: r.tipo, modo: r.modo, dia: Number(r.dia), patientId: r.patient_id ?? undefined };
+  return { id: r.id, paciente: r.paciente, hora: r.hora, dur: Number(r.dur), tipo: r.tipo, modo: r.modo, dia: Number(r.dia), patientId: r.patient_id ?? undefined, data: r.data ?? undefined, contato: r.contato ?? undefined };
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {
@@ -159,7 +159,7 @@ export async function createAppointment(a: Omit<Appointment, "id"> & { patientId
   if (isDemoMode()) return { ...a, id: demoId() };
   const { data, error } = await supabase
     .from("appointments")
-    .insert({ patient_id: a.patientId, paciente: a.paciente, hora: a.hora, dur: a.dur, tipo: a.tipo, modo: a.modo, dia: a.dia, created_by: createdBy })
+    .insert({ patient_id: a.patientId, paciente: a.paciente, hora: a.hora, dur: a.dur, tipo: a.tipo, modo: a.modo, dia: a.dia, data: a.data ?? null, contato: a.contato ?? null, created_by: createdBy })
     .select("*")
     .single();
   if (error) throw error;
@@ -432,11 +432,12 @@ export async function getBookingPublic(slug: string): Promise<BookingConfig | nu
   return { slug: d.slug, ativo: d.ativo, confirmAuto: d.confirm_auto ?? true, servicos: d.servicos ?? [], horarios: d.horarios ?? [] };
 }
 
-export async function requestAppointment(slug: string, opts: { nome: string; hora: string; tipo: string; modo: string; dur: number; dia: number }): Promise<boolean> {
+export async function requestAppointment(slug: string, opts: { nome: string; contato?: string; hora: string; tipo: string; modo: string; dur: number; data: string }): Promise<boolean> {
   if (isDemoMode()) return true;
   const { data, error } = await supabase.rpc("request_appointment", {
     p_slug: slug, p_nome: opts.nome, p_hora: opts.hora,
-    p_tipo: opts.tipo, p_modo: opts.modo, p_dur: opts.dur, p_dia: opts.dia,
+    p_tipo: opts.tipo, p_modo: opts.modo, p_dur: opts.dur,
+    p_data: opts.data, p_contato: opts.contato ?? null,
   });
   if (error) return false;
   return (data as any)?.ok === true;

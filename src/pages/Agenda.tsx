@@ -192,6 +192,7 @@ export default function Agenda() {
                     <div key={di} style={{ borderLeft: "1px solid var(--border)", padding: 4 }}>
                       {appt && (
                         <div onClick={() => p && nav(`/patients/${p.id}`)}
+                          title={[appt.paciente, appt.tipo, appt.contato && `Contato: ${appt.contato}`].filter(Boolean).join(" · ")}
                           style={{ cursor: "pointer", height: "100%", borderRadius: 9, padding: "6px 8px",
                             background: appt.modo === "Online" ? "rgb(var(--c-blue) / .14)" : "var(--sage-soft)",
                             borderLeft: `3px solid ${appt.modo === "Online" ? "var(--blue)" : "var(--sage)"}` }}>
@@ -258,7 +259,7 @@ export default function Agenda() {
           footer={<><Button variant="ghost" onClick={() => setNova(false)}>Cancelar</Button><Button variant="primary" onClick={async () => {
             const patientId = patients.find((p) => p.nome === form.paciente)?.id;
             try {
-              const saved = await salvarConsulta({ patientId, paciente: form.paciente, hora: form.hora, dur: 60, tipo: form.tipo, modo: form.modo, dia: Number(form.dia) });
+              const saved = await salvarConsulta({ patientId, paciente: form.paciente, hora: form.hora, dur: 60, tipo: form.tipo, modo: form.modo, dia: Number(form.dia), data: form.date });
               setAppointments([saved, ...appointments]);
               setNova(false);
               toast("Consulta agendada");

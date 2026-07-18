@@ -7,18 +7,19 @@ import { getBookingPublic, requestAppointment } from "../lib/db";
 import { brl, cx } from "../lib/utils";
 import type { BookingConfig, BookingService } from "../lib/types";
 
-function getNextDays(count: number): { label: string; short: string; day: number; month: number }[] {
+function getNextDays(count: number): { label: string; short: string; day: number; month: number; iso: string }[] {
   const result = [];
   const now = new Date();
   let checked = 0;
   let offset = 0;
+  const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   while (checked < count) {
     const d = new Date(now);
     d.setDate(now.getDate() + offset);
     const dow = d.getDay();
     if (dow !== 0 && dow !== 6) {
-      const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-      result.push({ label: DAYS[dow], short: DAYS[dow], day: d.getDate(), month: d.getMonth() + 1 });
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      result.push({ label: DAYS[dow], short: DAYS[dow], day: d.getDate(), month: d.getMonth() + 1, iso });
       checked++;
     }
     offset++;
@@ -65,14 +66,14 @@ export default function Booking() {
     setSubmitting(true);
     const diaReal = diasVisiveis[diaIdx];
     try {
-      const cleanContato = contato.trim();
       const ok = await requestAppointment(slug!, {
-        nome: cleanContato ? `${cleanNome} – ${cleanContato}` : cleanNome,
+        nome: cleanNome,
+        contato: contato.trim() || undefined,
         hora,
         tipo: service.nome,
         modo: service.modo.includes("Online") ? "Online" : "Presencial",
         dur: DUR_MAP[service.dur] ?? 60,
-        dia: diaReal.day,
+        data: diaReal.iso,
       });
       if (ok) setSuccess(true);
       else setNomeErr("Não foi possível confirmar. Tente novamente.");

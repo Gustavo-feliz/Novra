@@ -28,8 +28,10 @@ export interface Appointment {
   dur: number;
   tipo: string;
   modo: "Online" | "Presencial";
-  dia: number;
+  dia: number;            // índice de dia da semana: 0=Seg … 5=Sáb
   patientId?: string;
+  data?: string;          // data real da consulta (YYYY-MM-DD), quando disponível
+  contato?: string;       // telefone/e-mail informado no agendamento público
 }
 
 export interface BookingService {
