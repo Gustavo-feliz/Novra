@@ -23,7 +23,11 @@ export default function Dashboard() {
     listPatients().then(setApiPatients).catch(() => toast("Erro ao carregar pacientes"));
     listAppointments().then(setApiAppointments).catch(() => toast("Erro ao carregar agendamentos"));
   }, []);
-  const proximos = apiAppointments.slice(0, 4);
+  const diaHoje = new Date().getDate();
+  const proximos = [...apiAppointments]
+    .filter((a) => a.dia >= diaHoje)
+    .sort((a, b) => a.dia !== b.dia ? a.dia - b.dia : a.hora.localeCompare(b.hora))
+    .slice(0, 4);
   const ativos = apiPatients.filter((p) => p.status === "ativo").length;
 
   return (
@@ -36,7 +40,7 @@ export default function Dashboard() {
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
           <Button variant="ghost" onClick={() => nav("/patients?novo=1")}><UserPlus size={15} />Novo paciente</Button>
           <Button variant="ghost" onClick={() => nav("/agenda?nova=1")}><CalendarPlus size={15} />Nova consulta</Button>
-          <Button variant="primary" onClick={() => toast("Criando novo plano alimentar")}><FileText size={15} />Novo plano</Button>
+          <Button variant="primary" onClick={() => nav("/creator")}><FileText size={15} />Novo plano</Button>
         </div>
       </div>
 

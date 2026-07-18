@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Salad, Clock, MapPin, Calendar, ChevronLeft, ChevronRight, Check, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Salad, Clock, MapPin, Calendar, ChevronLeft, ChevronRight, Check, AlertCircle, CheckCircle2, Phone, RefreshCw } from "lucide-react";
 import { Button } from "../components/ui";
 import { getBookingPublic, requestAppointment } from "../lib/db";
 import { brl, cx } from "../lib/utils";
@@ -38,6 +38,7 @@ export default function Booking() {
   const [diaIdx, setDiaIdx] = useState(0);
   const [hora, setHora] = useState<string | null>(null);
   const [nome, setNome] = useState("");
+  const [contato, setContato] = useState("");
   const [nomeErr, setNomeErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -64,8 +65,9 @@ export default function Booking() {
     setSubmitting(true);
     const diaReal = diasVisiveis[diaIdx];
     try {
+      const cleanContato = contato.trim();
       const ok = await requestAppointment(slug!, {
-        nome: cleanNome,
+        nome: cleanContato ? `${cleanNome} – ${cleanContato}` : cleanNome,
         hora,
         tipo: service.nome,
         modo: service.modo.includes("Online") ? "Online" : "Presencial",
@@ -84,7 +86,7 @@ export default function Booking() {
   if (loadState === "loading") {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-        <div className="spinner" />
+        <div style={{ width: 32, height: 32, borderRadius: "50%", border: "3px solid var(--border)", borderTopColor: "var(--sage)", animation: "spin .9s linear infinite" }} />
       </div>
     );
   }
@@ -103,16 +105,28 @@ export default function Booking() {
 
   if (success && service && hora) {
     const diaReal = diasVisiveis[diaIdx];
+    const mm = String(diaReal.month).padStart(2, "0");
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: "center", maxWidth: 380 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: "var(--sage-soft)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}>
-            <CheckCircle2 size={30} color="var(--sage)" />
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: "center", maxWidth: 400 }}>
+          <div style={{ width: 72, height: 72, borderRadius: 22, background: "var(--sage-soft)", display: "grid", placeItems: "center", margin: "0 auto 20px" }}>
+            <CheckCircle2 size={34} color="var(--sage)" />
           </div>
-          <div className="h2" style={{ marginBottom: 8 }}>Solicitação enviada!</div>
-          <div className="muted" style={{ fontSize: 14, lineHeight: 1.6 }}>
-            Sua consulta de <strong>{service.nome}</strong> para o dia <strong>{diaReal.day}/{diaReal.month < 10 ? "0" + diaReal.month : diaReal.month}</strong> às <strong>{hora}</strong> foi enviada para confirmação. Em breve você receberá uma confirmação.
+          <div className="h2" style={{ marginBottom: 10, fontSize: 22 }}>Solicitação enviada!</div>
+          <div className="muted" style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 28 }}>
+            <strong>{service.nome}</strong> em{" "}
+            <strong>{diaReal.label}, {diaReal.day}/{mm}</strong> às <strong>{hora}</strong>.
+            <br />Você receberá a confirmação em breve pelo contato informado.
           </div>
+          <Button variant="ghost" onClick={() => {
+            setSuccess(false);
+            setNome("");
+            setContato("");
+            setHora(null);
+            setDiaIdx(0);
+          }}>
+            <RefreshCw size={15} />Agendar outra consulta
+          </Button>
         </motion.div>
       </div>
     );
@@ -175,14 +189,25 @@ export default function Booking() {
           </div>
 
           {/* Nome */}
-          <div className="eyebrow" style={{ marginBottom: 10 }}>4 · Seu nome</div>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>4 · Seus dados</div>
           <input
             className="input"
             value={nome}
             onChange={(e) => { setNome(e.target.value); setNomeErr(""); }}
             placeholder="Nome completo"
-            style={{ marginBottom: nomeErr ? 6 : 24, fontSize: 15 }}
+            style={{ marginBottom: 10, fontSize: 15 }}
           />
+          <div style={{ position: "relative", marginBottom: nomeErr ? 6 : 24 }}>
+            <Phone size={15} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--faint)", pointerEvents: "none" }} />
+            <input
+              className="input"
+              value={contato}
+              onChange={(e) => setContato(e.target.value)}
+              placeholder="Telefone ou e-mail para contato"
+              inputMode="tel"
+              style={{ paddingLeft: 36, fontSize: 15 }}
+            />
+          </div>
           <AnimatePresence>
             {nomeErr && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="banner alert" style={{ marginBottom: 16 }}>{nomeErr}</motion.div>
@@ -190,7 +215,7 @@ export default function Booking() {
           </AnimatePresence>
 
           <Button variant="primary" style={{ width: "100%", height: 48, fontSize: 15 }} disabled={!hora || submitting} onClick={confirmar}>
-            <Calendar size={17} />{submitting ? "Confirmando…" : hora ? `Confirmar ${diasVisiveis[diaIdx]?.day}/${diasVisiveis[diaIdx]?.month < 10 ? "0" + diasVisiveis[diaIdx]?.month : diasVisiveis[diaIdx]?.month} às ${hora}` : "Selecione um horário"}
+            <Calendar size={17} />{submitting ? "Confirmando…" : hora ? `Confirmar ${diasVisiveis[diaIdx]?.label}, ${diasVisiveis[diaIdx]?.day}/${String(diasVisiveis[diaIdx]?.month).padStart(2,"0")} às ${hora}` : "Selecione um horário"}
             {!submitting && hora && <Check size={16} />}
           </Button>
         </motion.div>

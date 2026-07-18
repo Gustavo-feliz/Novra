@@ -19,6 +19,29 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+
+function getWeekDates(): Date[] {
+  const now = new Date();
+  const dow = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+function weekLabel(dates: Date[]): string {
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  if (first.getMonth() === last.getMonth()) {
+    return `Semana de ${first.getDate()} – ${last.getDate()} de ${MESES[first.getMonth()]} · ${first.getFullYear()}`;
+  }
+  return `${first.getDate()} de ${MESES[first.getMonth()]} – ${last.getDate()} de ${MESES[last.getMonth()]} · ${first.getFullYear()}`;
+}
+
 function dateToDayIndex(value: string) {
   const date = new Date(value);
   const day = date.getDay();
@@ -34,6 +57,8 @@ export default function Agenda() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<View>("semana");
+  const weekDates = getWeekDates();
+  const todayColIndex = (() => { const d = new Date().getDay(); return d === 0 ? -1 : d - 1; })();
   const [nova, setNova] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
@@ -61,7 +86,7 @@ export default function Agenda() {
         <div>
           <div className="h1">Agenda</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-            <span className="muted" style={{ fontSize: 13 }}>Semana de 15 – 20 de junho · 2026</span>
+            <span className="muted" style={{ fontSize: 13 }}>{weekLabel(weekDates)}</span>
             <span className="chip sage" style={{ height: 22 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--sage)", display: "inline-block" }} />Google Calendar sincronizado</span>
           </div>
         </div>
@@ -132,7 +157,7 @@ export default function Agenda() {
               {WEEKDAYS.map((d, i) => (
                 <div key={d} style={{ padding: "10px 8px", textAlign: "center", borderLeft: "1px solid var(--border)" }}>
                   <div className="faint" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em" }}>{d.slice(0, 3)}</div>
-                  <div className="num" style={{ fontWeight: 600, fontSize: 15, color: i === 3 ? "var(--sage-strong)" : "var(--text)" }}>{15 + i}</div>
+                  <div className="num" style={{ fontWeight: 600, fontSize: 15, color: i === todayColIndex ? "var(--sage-strong)" : "var(--text)" }}>{weekDates[i].getDate()}</div>
                 </div>
               ))}
             </div>
