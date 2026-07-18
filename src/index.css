@@ -291,6 +291,9 @@
     .app-side, .prof-side { display: none; }
     .app-main { padding: 18px 16px 88px; }
     .topbar { padding: 0 14px; gap: 9px; }
+    /* toasts acima da barra de navegação inferior, largura total */
+    .toasts { left: 12px; right: 12px; bottom: calc(74px + env(safe-area-inset-bottom)); }
+    .toast { width: 100%; }
     .prof-main { padding: 18px 16px 88px; }
     .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; background: var(--glass); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-top: 1px solid var(--glass-brd); padding-bottom: env(safe-area-inset-bottom); }
     .mobilebar { display: flex; align-items: center; gap: 10px; position: sticky; top: 58px; z-index: 25; padding: 10px 16px; background: var(--glass); backdrop-filter: blur(18px) saturate(180%); border-bottom: 1px solid var(--glass-brd); }
@@ -308,10 +311,19 @@
 }
 
 /* page-specific responsive overrides (unlayered: beats inline styles via !important) */
+.dash-actions { display: flex; gap: 9px; flex-wrap: wrap; }
+
 @media (max-width: 920px) {
   .consult-grid { flex-direction: column !important; }
   .consult-aside { width: 100% !important; border-left: none !important; border-top: 1px solid var(--border) !important; }
   .kanban-cols { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 560px) {
+  /* botões de ação do dashboard: rolagem horizontal em vez de quebrar em 2 linhas */
+  .dash-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; width: calc(100% + 32px); margin: 0 -16px; padding: 2px 16px; }
+  .dash-actions::-webkit-scrollbar { display: none; }
+  .dash-actions > * { flex-shrink: 0; }
 }
 
 @media (max-width: 560px) {
@@ -576,7 +588,8 @@
   .portal-hero h1 { font-size: 26px; }
   .portal-hero-stat { width: 92px; height: 92px; border-radius: 16px; flex-shrink: 0; }
   .portal-hero-stat strong { font-size: 23px; }
-  .portal-grid.two, .portal-grid.three, .portal-diary-grid, .portal-achv-grid { grid-template-columns: 1fr; }
+  .portal-grid.two, .portal-grid.three, .portal-diary-grid { grid-template-columns: 1fr; }
+  .portal-achv-grid { grid-template-columns: repeat(2, 1fr); }
   .notif-panel { position: fixed; left: 50%; right: auto; top: 64px; width: min(92vw, 338px); margin-left: calc(min(92vw, 338px) / -2); }
   .portal-bottom-nav { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--glass); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-top: 1px solid var(--glass-brd); padding-bottom: env(safe-area-inset-bottom); }
   .portal-bottom-item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; color: var(--faint); text-decoration: none; font-size: 10px; font-weight: 600; }

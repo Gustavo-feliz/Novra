@@ -49,8 +49,29 @@ function dateToDayIndex(value: string) {
 }
 
 type View = "dia" | "semana" | "mes";
-const MONTH_DAYS = 30; // junho/2026 começa numa segunda-feira
 const MONTH_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+// Grade do mês atual (segunda-feira primeiro): células nulas no início para
+// alinhar o dia 1 com o dia da semana correto.
+function getMonthGrid(): (number | null)[] {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstDow = new Date(year, month, 1).getDay();   // 0=Dom … 6=Sáb
+  const leading = (firstDow + 6) % 7;                    // deslocamento seg-primeiro
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return [
+    ...Array.from({ length: leading }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+}
+
+// Índice de dia da semana (0=Seg … 5=Sáb) de um dia do mês atual; -1 se domingo.
+function dayOfMonthToWeekIndex(day: number): number {
+  const now = new Date();
+  const dow = new Date(now.getFullYear(), now.getMonth(), day).getDay();
+  return dow === 0 ? -1 : dow - 1;
+}
 
 export default function Agenda() {
   const nav = useNavigate();
@@ -59,6 +80,7 @@ export default function Agenda() {
   const [view, setView] = useState<View>("semana");
   const weekDates = getWeekDates();
   const todayColIndex = (() => { const d = new Date().getDay(); return d === 0 ? -1 : d - 1; })();
+  const diaAtual = new Date().getDate();
   const [nova, setNova] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
@@ -87,7 +109,6 @@ export default function Agenda() {
           <div className="h1">Agenda</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
             <span className="muted" style={{ fontSize: 13 }}>{weekLabel(weekDates)}</span>
-            <span className="chip sage" style={{ height: 22 }}><span style={{ width: 7, height: 7, borderRadius: 99, background: "var(--sage)", display: "inline-block" }} />Google Calendar sincronizado</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
@@ -212,10 +233,11 @@ export default function Agenda() {
         <div className="card pad">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
             {MONTH_LABELS.map((d) => <div key={d} className="faint" style={{ fontSize: 11, textAlign: "center", fontWeight: 600, padding: "4px 0" }}>{d}</div>)}
-            {Array.from({ length: MONTH_DAYS }).map((_, i) => {
-              const day = i + 1;
-              const count = [3, 9, 12, 16, 18, 23, 25].includes(day) ? (day % 3) + 1 : 0;
-              const today = day === 16;
+            {getMonthGrid().map((day, i) => {
+              if (day === null) return <div key={`b${i}`} />;
+              const wi = dayOfMonthToWeekIndex(day);
+              const count = wi >= 0 ? appointments.filter((a) => a.dia === wi).length : 0;
+              const today = day === diaAtual;
               return (
                 <div key={day} style={{ minHeight: 78, borderRadius: 10, border: "1px solid var(--border)", padding: 8, background: today ? "var(--sage-soft)" : "var(--surface)" }}>
                   <div className="num" style={{ fontSize: 12.5, fontWeight: today ? 700 : 500, color: today ? "var(--sage-strong)" : "var(--muted)" }}>{day}</div>

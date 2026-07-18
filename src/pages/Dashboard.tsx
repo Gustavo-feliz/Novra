@@ -19,13 +19,14 @@ export default function Dashboard() {
   const [apiAppointments, setApiAppointments] = useState<Appointment[]>([]);
   const { events } = useEvents("clinica");
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const hojeLabel = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][new Date().getDay()];
   useEffect(() => {
     listPatients().then(setApiPatients).catch(() => toast("Erro ao carregar pacientes"));
     listAppointments().then(setApiAppointments).catch(() => toast("Erro ao carregar agendamentos"));
   }, []);
-  const diaHoje = new Date().getDate();
+  // `dia` é índice de dia da semana (0=Seg … 5=Sáb); ordena por dia e hora
+  // para mostrar os atendimentos na ordem em que acontecem na semana.
   const proximos = [...apiAppointments]
-    .filter((a) => a.dia >= diaHoje)
     .sort((a, b) => a.dia !== b.dia ? a.dia - b.dia : a.hora.localeCompare(b.hora))
     .slice(0, 4);
   const ativos = apiPatients.filter((p) => p.status === "ativo").length;
@@ -37,7 +38,7 @@ export default function Dashboard() {
           <div className="h1">Bom dia, {CLINIC.nutri.split(" ")[0]}</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 3, textTransform: "capitalize" }}>{hoje}</div>
         </div>
-        <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+        <div className="dash-actions">
           <Button variant="ghost" onClick={() => nav("/patients?novo=1")}><UserPlus size={15} />Novo paciente</Button>
           <Button variant="ghost" onClick={() => nav("/agenda?nova=1")}><CalendarPlus size={15} />Nova consulta</Button>
           <Button variant="primary" onClick={() => nav("/creator")}><FileText size={15} />Novo plano</Button>
@@ -88,7 +89,7 @@ export default function Dashboard() {
                   <XAxis dataKey="dia" tick={{ fontSize: 11, fill: "var(--faint)" }} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: "var(--sage-soft)" }} />
                   <Bar dataKey="consultas" radius={[6, 6, 0, 0]} maxBarSize={42}>
-                    {DASH.semana.map((_, i) => <Cell key={i} fill={i === 2 ? "var(--sage)" : "var(--sage-soft)"} />)}
+                    {DASH.semana.map((s, i) => <Cell key={i} fill={s.dia === hojeLabel ? "var(--sage)" : "var(--sage-soft)"} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

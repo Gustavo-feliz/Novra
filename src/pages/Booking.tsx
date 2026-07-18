@@ -164,7 +164,10 @@ export default function Booking() {
           </div>
 
           {/* Dia */}
-          <div className="eyebrow" style={{ marginBottom: 10 }}>2 · Dia</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div className="eyebrow">2 · Dia</div>
+            <div className="faint" style={{ fontSize: 11.5 }}>Semana {diasPage + 1} de {Math.ceil(DIAS.length / PAGE_SIZE)}</div>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
             <button className="iconbtn" style={{ width: 34, height: 44, flexShrink: 0 }} disabled={diasPage === 0} onClick={() => setDiasPage((p) => p - 1)}><ChevronLeft size={16} /></button>
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
