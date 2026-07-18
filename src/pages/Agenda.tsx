@@ -21,11 +21,26 @@ function formatDateInput(date: Date) {
 
 const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 
-function getWeekDates(): Date[] {
-  const now = new Date();
-  const dow = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+// Índice de dia da semana: 0=Seg … 5=Sáb; -1 se domingo.
+function weekIndexOf(d: Date): number {
+  const dow = d.getDay();
+  return dow === 0 ? -1 : dow - 1;
+}
+
+// Converte "DD/MM/AAAA" (ou "DD/MM") em Date; null se inválido.
+function parseBrDate(s: string): Date | null {
+  const parts = s.split("/").map(Number);
+  if (parts.length < 2 || parts.some((n) => Number.isNaN(n))) return null;
+  const [dd, mm, yyyy] = parts;
+  const d = new Date(yyyy ?? new Date().getFullYear(), mm - 1, dd);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// Semana (segunda a sábado) que contém a data de referência.
+function getWeekDates(ref: Date): Date[] {
+  const dow = ref.getDay();
+  const monday = new Date(ref);
+  monday.setDate(ref.getDate() - (dow === 0 ? 6 : dow - 1));
   return Array.from({ length: 6 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
@@ -51,12 +66,11 @@ function dateToDayIndex(value: string) {
 type View = "dia" | "semana" | "mes";
 const MONTH_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
-// Grade do mês atual (segunda-feira primeiro): células nulas no início para
-// alinhar o dia 1 com o dia da semana correto.
-function getMonthGrid(): (number | null)[] {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+// Grade do mês de referência (segunda-feira primeiro): células nulas no início
+// para alinhar o dia 1 com o dia da semana correto.
+function getMonthGrid(ref: Date): (number | null)[] {
+  const year = ref.getFullYear();
+  const month = ref.getMonth();
   const firstDow = new Date(year, month, 1).getDay();   // 0=Dom … 6=Sáb
   const leading = (firstDow + 6) % 7;                    // deslocamento seg-primeiro
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -66,22 +80,32 @@ function getMonthGrid(): (number | null)[] {
   ];
 }
 
-// Índice de dia da semana (0=Seg … 5=Sáb) de um dia do mês atual; -1 se domingo.
-function dayOfMonthToWeekIndex(day: number): number {
-  const now = new Date();
-  const dow = new Date(now.getFullYear(), now.getMonth(), day).getDay();
-  return dow === 0 ? -1 : dow - 1;
-}
-
 export default function Agenda() {
   const nav = useNavigate();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<View>("semana");
-  const weekDates = getWeekDates();
-  const todayColIndex = (() => { const d = new Date().getDay(); return d === 0 ? -1 : d - 1; })();
-  const diaAtual = new Date().getDate();
+  const [refDate, setRefDate] = useState(() => new Date());
+  const weekDates = getWeekDates(refDate);
+  const todayISO = formatDateInput(new Date());
+  const refISO = formatDateInput(refDate);
+  const refWi = weekIndexOf(refDate);
   const [nova, setNova] = useState(false);
+
+  // Navegação: passo depende da view (dia = ±1 dia, semana = ±7, mês = ±1 mês).
+  const shiftRef = (dir: -1 | 1) => setRefDate((d) => {
+    const n = new Date(d);
+    if (view === "dia") n.setDate(d.getDate() + dir);
+    else if (view === "semana") n.setDate(d.getDate() + dir * 7);
+    else n.setMonth(d.getMonth() + dir);
+    return n;
+  });
+
+  const headerLabel = view === "dia"
+    ? refDate.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })
+    : view === "mes"
+      ? `${MESES[refDate.getMonth()]} · ${refDate.getFullYear()}`
+      : weekLabel(weekDates);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [requests, setRequests] = usePersistentState<AppointmentRequest[]>(LOCAL_KEYS.appointmentRequests, []);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -108,7 +132,7 @@ export default function Agenda() {
         <div>
           <div className="h1">Agenda</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-            <span className="muted" style={{ fontSize: 13 }}>{weekLabel(weekDates)}</span>
+            <span className="muted" style={{ fontSize: 13, textTransform: view === "dia" ? "capitalize" : "none" }}>{headerLabel}</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
@@ -141,7 +165,10 @@ export default function Agenda() {
                 }}><X size={13} />Recusar</Button>
                 <Button sm variant="primary" onClick={async () => {
                   try {
-                    const saved = await salvarConsulta({ patientId: request.patientId, paciente: request.paciente, hora: request.hora, dur: 45, tipo: request.servico, modo: request.modo, dia: 3 });
+                    const reqDate = parseBrDate(request.data);
+                    const reqDia = reqDate ? Math.max(0, weekIndexOf(reqDate)) : 0;
+                    const reqISO = reqDate ? formatDateInput(reqDate) : undefined;
+                    const saved = await salvarConsulta({ patientId: request.patientId, paciente: request.paciente, hora: request.hora, dur: 45, tipo: request.servico, modo: request.modo, dia: reqDia, data: reqISO });
                     setAppointments([saved, ...appointments]);
                   } catch {
                     toast("Erro ao confirmar consulta");
@@ -164,9 +191,9 @@ export default function Agenda() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <Segmented<View> value={view} onChange={setView} options={[{ value: "dia", label: "Dia" }, { value: "semana", label: "Semana" }, { value: "mes", label: "Mês" }]} />
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <button className="iconbtn"><ChevronLeft size={16} /></button>
-          <Button variant="subtle" sm>Hoje</Button>
-          <button className="iconbtn"><ChevronRight size={16} /></button>
+          <button className="iconbtn" onClick={() => shiftRef(-1)} aria-label="Anterior"><ChevronLeft size={16} /></button>
+          <Button variant="subtle" sm onClick={() => setRefDate(new Date())}>Hoje</Button>
+          <button className="iconbtn" onClick={() => shiftRef(1)} aria-label="Próximo"><ChevronRight size={16} /></button>
         </div>
       </div>
 
@@ -178,7 +205,7 @@ export default function Agenda() {
               {WEEKDAYS.map((d, i) => (
                 <div key={d} style={{ padding: "10px 8px", textAlign: "center", borderLeft: "1px solid var(--border)" }}>
                   <div className="faint" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em" }}>{d.slice(0, 3)}</div>
-                  <div className="num" style={{ fontWeight: 600, fontSize: 15, color: i === todayColIndex ? "var(--sage-strong)" : "var(--text)" }}>{weekDates[i].getDate()}</div>
+                  <div className="num" style={{ fontWeight: 600, fontSize: 15, color: formatDateInput(weekDates[i]) === todayISO ? "var(--sage-strong)" : "var(--text)" }}>{weekDates[i].getDate()}</div>
                 </div>
               ))}
             </div>
@@ -186,7 +213,8 @@ export default function Agenda() {
               <div key={h} style={{ display: "grid", gridTemplateColumns: "58px repeat(6, 1fr)", minHeight: 56, borderBottom: "1px solid var(--border)" }}>
                 <div className="num faint" style={{ fontSize: 11, padding: "6px 8px", textAlign: "right" }}>{h}</div>
                 {WEEKDAYS.map((_, di) => {
-                  const appt = appointments.find((a) => a.dia === di && a.hora === h);
+                  const cellISO = formatDateInput(weekDates[di]);
+                  const appt = appointments.find((a) => a.hora === h && (a.data ? a.data === cellISO : a.dia === di));
                   const p = appt && patients.find((x) => x.nome === appt.paciente);
                   return (
                     <div key={di} style={{ borderLeft: "1px solid var(--border)", padding: 4 }}>
@@ -212,7 +240,7 @@ export default function Agenda() {
       {view === "dia" && (
         <div className="card" style={{ overflow: "hidden" }}>
           {HOURS.map((h) => {
-            const appt = appointments.find((a) => a.dia === 3 && a.hora === h);
+            const appt = appointments.find((a) => a.hora === h && (a.data ? a.data === refISO : a.dia === refWi));
             const p = appt && patients.find((x) => x.nome === appt.paciente);
             return (
               <div key={h} style={{ display: "flex", gap: 14, padding: "12px 16px", borderTop: "1px solid var(--border)", minHeight: 56 }}>
@@ -234,13 +262,15 @@ export default function Agenda() {
         <div className="card pad">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
             {MONTH_LABELS.map((d) => <div key={d} className="faint" style={{ fontSize: 11, textAlign: "center", fontWeight: 600, padding: "4px 0" }}>{d}</div>)}
-            {getMonthGrid().map((day, i) => {
+            {getMonthGrid(refDate).map((day, i) => {
               if (day === null) return <div key={`b${i}`} />;
-              const wi = dayOfMonthToWeekIndex(day);
-              const count = wi >= 0 ? appointments.filter((a) => a.dia === wi).length : 0;
-              const today = day === diaAtual;
+              const cellDate = new Date(refDate.getFullYear(), refDate.getMonth(), day);
+              const cellISO = formatDateInput(cellDate);
+              const wi = weekIndexOf(cellDate);
+              const count = appointments.filter((a) => a.data ? a.data === cellISO : (wi >= 0 && a.dia === wi)).length;
+              const today = cellISO === todayISO;
               return (
-                <div key={day} style={{ minHeight: 78, borderRadius: 10, border: "1px solid var(--border)", padding: 8, background: today ? "var(--sage-soft)" : "var(--surface)" }}>
+                <div key={day} onClick={() => { setRefDate(cellDate); setView("dia"); }} title="Ver dia" style={{ minHeight: 78, borderRadius: 10, border: "1px solid var(--border)", padding: 8, background: today ? "var(--sage-soft)" : "var(--surface)", cursor: "pointer" }}>
                   <div className="num" style={{ fontSize: 12.5, fontWeight: today ? 700 : 500, color: today ? "var(--sage-strong)" : "var(--muted)" }}>{day}</div>
                   {count > 0 && (
                     <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>

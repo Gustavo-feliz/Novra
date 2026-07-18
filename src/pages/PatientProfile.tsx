@@ -351,6 +351,10 @@ const MANIPULADOS_SEED: Record<string, Prescricao[]> = {
 };
 
 /* ============================ APP ============================ */
+// Data local em ISO (YYYY-MM-DD) e índice de dia da semana (0=Seg … 5=Sáb).
+const toISODate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const isoWeekIndex = (iso: string) => { const dow = new Date(iso + "T00:00:00").getDay(); return dow === 0 ? -1 : dow - 1; };
+
 export default function PatientProfile() {
   const { theme, toggle } = useTheme();
   const toast = useToast();
@@ -412,12 +416,13 @@ export default function PatientProfile() {
   useEffect(() => { listAppointments().then(setAppointments).catch(() => toast("Erro ao carregar agendamentos")); }, []);
   const apptsDoPaciente = appointments.filter((a) => a.paciente === sel.nome);
   const [novoAgendamento, setNovoAgendamento] = useState(false);
-  const [agendaForm, setAgendaForm] = useState({ dia: "3", hora: "14:00", tipo: "Retorno", modo: "Online" as "Online" | "Presencial" });
+  const [agendaForm, setAgendaForm] = useState({ date: toISODate(new Date()), hora: "14:00", tipo: "Retorno", modo: "Online" as "Online" | "Presencial" });
   const criarAgendamento = async () => {
     const userId = getUserId();
     if (!userId) return;
     try {
-      const saved = await createAppointment({ patientId: sel.id, paciente: sel.nome, hora: agendaForm.hora, dur: 60, tipo: agendaForm.tipo, modo: agendaForm.modo, dia: Number(agendaForm.dia) }, userId);
+      const dia = Math.max(0, isoWeekIndex(agendaForm.date));
+      const saved = await createAppointment({ patientId: sel.id, paciente: sel.nome, hora: agendaForm.hora, dur: 60, tipo: agendaForm.tipo, modo: agendaForm.modo, dia, data: agendaForm.date }, userId);
       setAppointments([saved, ...appointments]);
       setNovoAgendamento(false);
       toast("Agendamento criado");
@@ -888,7 +893,7 @@ export default function PatientProfile() {
             footer={<><button className="btn ghost" onClick={() => setNovoAgendamento(false)}>Cancelar</button><button className="btn primary" onClick={criarAgendamento}><CalendarPlus size={15} />Agendar</button></>}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <div className="field"><label>Dia da semana</label><select className="select" value={agendaForm.dia} onChange={(e) => setAgendaForm({ ...agendaForm, dia: e.currentTarget.value })}>{WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></div>
+                <div className="field"><label>Data</label><input className="input" type="date" value={agendaForm.date} onChange={(e) => setAgendaForm({ ...agendaForm, date: e.currentTarget.value })} /></div>
                 <div className="field"><label>Hora</label><input className="input num" value={agendaForm.hora} onChange={(e) => setAgendaForm({ ...agendaForm, hora: e.currentTarget.value })} placeholder="14:00" /></div>
               </div>
               <div className="field"><label>Tipo</label><input className="input" value={agendaForm.tipo} onChange={(e) => setAgendaForm({ ...agendaForm, tipo: e.currentTarget.value })} /></div>
